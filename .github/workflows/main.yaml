@@ -5,9 +5,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v3
         with:
-          python-version: 3.12
-      - name: Install ruff
-        run: pip install ruff==0.4.2
-      - run: ruff format --check && ruff check --no-fix
+          enable-cache: true
+      - name: Install Python 3.12
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: uv sync --group lint --frozen --no-cache
+      - name: Run ruff
+        run: uv run ruff format --check && ruff check --no-fix
