@@ -1,6 +1,13 @@
+import logging
 from dataclasses import dataclass
 
 import yaml
+from marshmallow.exceptions import ValidationError
+from marshmallow_dataclass import class_schema
+
+from app.web.exceptions import LoadConfigError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -27,11 +34,16 @@ class Config:
     database: DatabaseConfig | None = None
 
 
+ConfigSchema = class_schema(Config)()
+
+
 def load_config(config_path: str) -> Config:
     with open(config_path, "r") as f:
         raw_config = yaml.safe_load(f)
 
-    return Config(
-        bot=BotConfig(token=raw_config["bot"]["token"]),
-        database=DatabaseConfig(**raw_config["database"]),
-    )
+    try:
+        config = ConfigSchema.load(raw_config)
+    except ValidationError as e:
+        logger.error("Error validating config file: %s", e)
+        raise LoadConfigError("Error validating config file") from e
+    return config

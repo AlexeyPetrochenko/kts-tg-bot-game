@@ -19,20 +19,19 @@ class Poller:
         self.is_running = True
         self.poll_task = asyncio.create_task(self.poll())
         self.poll_task.add_done_callback(self._done_callback)
+        logger.info("Polling started")
 
     async def stop(self) -> None:
         self.is_running = False
         if self.poll_task:
             await self.poll_task
+        logger.info("Poller Stopped")
 
     def _done_callback(self, result: Future) -> None:
         if result.exception():
             logger.error(
                 "poller stopped with exception", exc_info=result.exception()
             )
-        if self.is_running and not self.store.tg_api.session.closed:
-            self.start()
-            logger.info("Restart Poller")
 
     async def poll(self) -> None:
         while self.is_running:

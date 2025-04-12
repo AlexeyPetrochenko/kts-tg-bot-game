@@ -32,8 +32,8 @@ class Database:
         self.session = async_sessionmaker(
             bind=self.engine, expire_on_commit=False
         )
-        logger.info("Connection to the database")
+        logger.info("Connected to database")
 
     async def disconnect(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         await self.engine.dispose()
-        logger.info("The connection to the database was disconnect")
+        logger.info("Database connection closed")
