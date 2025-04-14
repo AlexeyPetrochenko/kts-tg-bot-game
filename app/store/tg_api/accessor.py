@@ -33,30 +33,22 @@ class TGApiAccessor:
     async def poll(self) -> None:
         params = {"timeout": self.timeout, "offset": self.offset}
         updates = await self._request_api("getUpdates", params)
-        for update_ in updates["result"]:
-            # TODO: Вынести парсинг и обработку сообщения
-            update = Update(
-                update_id=update_["update_id"],
-                message=Message(
-                    message_id=update_["message"]["message_id"],
-                    from_id=update_["message"]["from"]["id"],
-                    from_name=update_["message"]["from"]["first_name"],
-                    chat_id=update_["message"]["chat"]["id"],
-                    text=update_["message"].get("text", "No text"),
-                    date=update_["message"]["date"],
-                ),
-            )
-            await self.store.bot_manager.handle_updates(update)
-            self.offset = update.update_id + 1
+        for update in updates["result"]:
+            update_scheme = self._parse_message(update)
+            if isinstance(update_scheme, Update):
+                await self.store.bot_manager.handle_updates(update_scheme)
+                self.offset = update_scheme.update_id + 1
+            else:
+                self.offset = update_scheme + 1
+
+    async def send_message(self, message: Message) -> None:
+        params = {"chat_id": message.chat_id, "text": message.text}
+        await self._request_api("sendMessage", params)
 
     @staticmethod
     def _build_query(host: str, token: str, method: str, params: dict) -> str:
         params = {k: v for k, v in params.items() if v is not None}
         return f"{host}{token}/{method}?{urlencode(params)}"
-
-    async def send_message(self, message: Message) -> None:
-        params = {"chat_id": message.chat_id, "text": message.text}
-        await self._request_api("sendMessage", params)
 
     async def _request_api(self, method: str, params: dict) -> dict:
         try:
@@ -73,3 +65,22 @@ class TGApiAccessor:
         except ClientResponseError as e:
             logger.error(e)
             raise
+
+    def _parse_message(self, update: dict) -> Update | int:
+        try:
+            return Update(
+                update_id=update["update_id"],
+                message=Message(
+                    message_id=update["message"]["message_id"],
+                    from_id=update["message"]["from"]["id"],
+                    from_name=update["message"]["from"]["first_name"],
+                    chat_id=update["message"]["chat"]["id"],
+                    text=update["message"]["text"],
+                    date=update["message"]["date"],
+                ),
+            )
+        except KeyError as e:
+            logger.error(
+                "An update with an incorrect structure was missed. [%s]", e
+            )
+            return update["update_id"]
