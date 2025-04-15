@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.store.database.sqlalchemy_base import BaseModel
-from app.web.config import load_config
+from app.web.config import get_config_path, load_config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -17,10 +17,8 @@ config = context.config
 
 
 # Установка пути до конфига, для миграции
-config_path = os.path.join(
-    os.path.dirname(__file__), '..', 'etc', 'config.yaml'
-)
-config_app = load_config(config_path)
+
+config_app = load_config(get_config_path())
 config.set_main_option("sqlalchemy.url", config_app.database.DATABASE_URL)
 
 

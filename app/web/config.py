@@ -1,4 +1,5 @@
 import logging
+import os
 from dataclasses import dataclass
 
 import yaml
@@ -47,3 +48,13 @@ def load_config(config_path: str) -> Config:
         logger.error("Error validating config file: %s", e)
         raise LoadConfigError("Error validating config file") from e
     return config
+
+
+def get_config_path() -> str:
+    if os.getenv("ENV") == "dev":
+        return os.path.join(
+            os.path.dirname(__file__), "..", "..", "local", "etc", "config.yaml"
+        )
+    return os.path.join(
+        os.path.dirname(__file__), "..", "..", "etc", "config.yaml"
+    )
