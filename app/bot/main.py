@@ -1,8 +1,7 @@
 import asyncio
 import logging
 
-from app.bot.poller import Poller
-from app.store.store import Store
+from app.bot.bot import setup_bot
 from app.web.config import get_config_path, load_config
 from app.web.logger import setup_logging
 
@@ -12,19 +11,15 @@ logger = logging.getLogger(__name__)
 
 async def main() -> None:
     config = load_config(get_config_path())
-    store = Store(config)
-    await store.tg_api.connect()
-    poller = Poller(store)
-
+    bot = setup_bot(config)
     try:
-        poller.start()
+        await bot.run_bot()
         await asyncio.Event().wait()
     except Exception as e:
         logger.error(e)
     finally:
         logger.info("Bot stopped")
-        await poller.stop()
-        await store.tg_api.disconnect()
+        await bot.stop_bot()
 
 
 if __name__ == "__main__":
