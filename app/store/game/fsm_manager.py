@@ -7,16 +7,15 @@ if typing.TYPE_CHECKING:
 
 
 class FsmManager:
-    fsm_storage: dict[int, Fsm] = {}
-
     def __init__(self, store: "Store") -> None:
         self.store = store
+        self.fsm_storage: dict[int, Fsm] = {}
 
     def get_fsm(self, chat_id: int) -> Fsm | None:
         return self.fsm_storage.get(chat_id)
 
     def set_fsm(self, chat_id: int) -> Fsm:
-        fsm = setup_fsm(self)
+        fsm = setup_fsm(self.store, chat_id)
         self.fsm_storage[chat_id] = fsm
         return fsm
 
