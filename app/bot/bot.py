@@ -10,10 +10,12 @@ class Bot:
 
     async def run_bot(self) -> None:
         await self.store.tg_api.connect()
+        await self.store.database.connect()
         self.poller.start()
 
     async def stop_bot(self) -> None:
         await self.poller.stop()
+        await self.store.database.disconnect()
         await self.store.tg_api.disconnect()
 
 

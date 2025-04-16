@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import BigInteger, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.store.database.sqlalchemy_base import BaseModel
@@ -29,7 +29,7 @@ class GameModel(BaseModel):
     __tablename__ = "games"
 
     game_id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    chat_id: Mapped[int]
+    chat_id: Mapped[int] = mapped_column(BigInteger)
     state: Mapped[GameState] = mapped_column(
         default=GameState.WAITING_FOR_PLAYERS
     )
@@ -49,7 +49,7 @@ class UserModel(BaseModel):
     __tablename__ = "users"
 
     user_id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    tg_user_id: Mapped[int]
+    tg_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[str]
     first_name: Mapped[str | None]
     last_name: Mapped[str | None]
@@ -84,10 +84,14 @@ class GameParticipantModel(BaseModel):
         back_populates="game_participations",
     )
 
+    __table_args__ = (
+        UniqueConstraint("user_id", "game_id", name="uq_user_game"),
+    )
+
 
 class QuestionModel(BaseModel):
     __tablename__ = "questions"
 
     question_id: Mapped[int] = mapped_column(primary_key=True)
-    question: Mapped[str]
-    answer: Mapped[str]
+    question: Mapped[str] = mapped_column(unique=True)
+    answer: Mapped[str] = mapped_column(unique=True)

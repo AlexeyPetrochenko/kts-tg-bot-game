@@ -23,13 +23,13 @@ class Database:
         self.store = store
         self.engine: AsyncEngine | None = None
         self._db: type[DeclarativeBase] = BaseModel
-        self.session: async_sessionmaker[AsyncSession] | None = None
+        self.session_maker: async_sessionmaker[AsyncSession] | None = None
 
     async def connect(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         self.engine = create_async_engine(
             self.store.config.database.DATABASE_URL
         )
-        self.session = async_sessionmaker(
+        self.session_maker = async_sessionmaker(
             bind=self.engine, expire_on_commit=False
         )
         logger.info("Connected to database")
