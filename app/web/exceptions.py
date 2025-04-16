@@ -8,10 +8,20 @@ class LoadConfigError(AppError):
     pass
 
 
+class FsmError(AppError):
+    pass
+
+
 class GameCreateError(AppError):
     def __init__(self, chat_id: int) -> None:
         super().__init__(reason=f"Failed create game in chat [{chat_id}]")
         self.chat_id = chat_id
+
+
+class UpdateGameStateError(AppError):
+    def __init__(self, game_id: int) -> None:
+        super().__init__(reason=f"Failed update game state id[{game_id}]")
+        self.game_id = game_id
 
 
 class QuestionCreateError(AppError):
@@ -52,3 +62,12 @@ class ParticipantCreateError(AppError):
         )
         self.game_id = game_id
         self.user_id = user_id
+
+
+class UpdateStatusPlayerError(AppError):
+    def __init__(self, player_id: int, status: str) -> None:
+        super().__init__(
+            reason=f"Player-id[{player_id}] failed to update status-[{status}]"
+        )
+        self.player_id = player_id
+        self.status = status

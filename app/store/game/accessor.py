@@ -1,5 +1,6 @@
 import logging
 import typing
+from collections.abc import Sequence
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError, NoResultFound, SQLAlchemyError
@@ -7,6 +8,7 @@ from sqlalchemy.exc import IntegrityError, NoResultFound, SQLAlchemyError
 from app.game.models import (
     GameModel,
     GameParticipantModel,
+    GameParticipantState,
     GameState,
     QuestionModel,
     UserModel,
@@ -17,6 +19,8 @@ from app.web.exceptions import (
     ParticipantRegistrationError,
     QuestionCreateError,
     QuestionNotFoundError,
+    UpdateGameStateError,
+    UpdateStatusPlayerError,
     UserCreateError,
 )
 
@@ -47,6 +51,16 @@ class GameAccessor:
                 logger.error(e)
                 raise GameCreateError(chat_id) from e
             return game
+
+    async def update_game_state(self, game_id: int, state: GameState) -> None:
+        async with self.store.database.session_maker() as session:
+            game = await session.get(GameModel, game_id)
+            game.state = state
+            try:
+                await session.commit()
+            except SQLAlchemyError as e:
+                logger.error(e)
+                raise UpdateGameStateError(game_id) from e
 
     async def get_running_game(self, chat_id: int) -> GameModel | None:
         async with self.store.database.session_maker() as session:
@@ -134,8 +148,47 @@ class GameAccessor:
 
     async def get_count_participant(self, game_id: int) -> int:
         async with self.store.database.session_maker() as session:
-            stm = select(func.count(GameParticipantModel.participant_id)).where(
+            stm = select(func.count(1)).where(
                 GameParticipantModel.game_id == game_id
             )
-            result = await session.scalar(stm)
-            return result or 0
+            return await session.scalar(stm)
+
+    async def get_players_by_game_id(
+        self, game_id: int
+    ) -> Sequence[GameParticipantModel]:
+        async with self.store.database.session_maker() as session:
+            stm = select(GameParticipantModel).where(
+                GameParticipantModel.game_id == game_id
+            )
+            result = await session.scalars(stm)
+            return result.all()
+
+    async def get_active_player(
+        self, game_id: int
+    ) -> GameParticipantModel | None:
+        async with self.store.database.session_maker() as session:
+            stm = select(GameParticipantModel).where(
+                and_(
+                    GameParticipantModel.game_id == game_id,
+                    GameParticipantModel.state
+                    == GameParticipantState.ACTIVE_TURN,
+                )
+            )
+            return await session.scalar(stm)
+
+    async def update_status_player(
+        self,
+        player: GameParticipantModel,
+        status: GameParticipantState,
+    ) -> None:
+        async with self.store.database.session_maker() as session:
+            player.state = status
+            session.add(player)
+            try:
+                await session.commit()
+            except SQLAlchemyError as e:
+                logger.error(e)
+                raise UpdateStatusPlayerError(
+                    player.participant_id,
+                    status,
+                ) from e

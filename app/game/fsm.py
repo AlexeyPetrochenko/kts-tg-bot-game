@@ -2,7 +2,13 @@ import logging
 import typing
 
 from app.game.models import GameModel, GameState
-from app.game.states import BaseFsmState, PlayersWaitingFsmState
+from app.game.states import (
+    BaseFsmState,
+    NextPlayerTurnFsmState,
+    PlayersWaitingFsmState,
+    PlayerTurnFsmState,
+)
+from app.web.exceptions import FsmError
 
 if typing.TYPE_CHECKING:
     from app.store.store import Store
@@ -16,7 +22,19 @@ class Fsm:
         self.chat_id = chat_id
         self.states: dict[GameState, BaseFsmState] = {}
         self.current_state: BaseFsmState | None = None
-        self.game_id: int | None = None
+        self._game_id: int | None = None
+
+    @property
+    def game_id(self) -> int:
+        if self._game_id is None:
+            # TODO: Что бы mypy не ругался, что может быть None
+            # TODO: Возможно реализовать логику удаления fsm
+            raise FsmError("Well, I managed to get the game state.")
+        return self._game_id
+
+    @game_id.setter
+    def game_id(self, id_: int) -> None:
+        self._game_id = id_
 
     async def restore_current_state(self, game: GameModel) -> None:
         # TODO: Написать логику по восстановлению игры из БД
@@ -44,4 +62,6 @@ class Fsm:
 def setup_fsm(store: "Store", chat_id: int) -> Fsm:
     fsm = Fsm(store, chat_id)
     fsm.add_state(GameState.WAITING_FOR_PLAYERS, PlayersWaitingFsmState)
+    fsm.add_state(GameState.NEXT_PLAYER_TURN, NextPlayerTurnFsmState)
+    fsm.add_state(GameState.PLAYER_TURN, PlayerTurnFsmState)
     return fsm

@@ -74,6 +74,7 @@ class GameParticipantModel(BaseModel):
     state: Mapped[GameParticipantState] = mapped_column(
         default=GameParticipantState.WAITING,
     )
+    # TODO: Сделать поле обязательным
     turn_order: Mapped[int | None]
     points: Mapped[int] = mapped_column(default=0)
 

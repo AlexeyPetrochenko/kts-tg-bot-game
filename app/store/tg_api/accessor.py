@@ -80,7 +80,10 @@ class TGApiAccessor:
         self, callback_id: str, text: str | None = None
     ) -> None:
         params = {"callback_query_id": callback_id, "text": text}
-        await self._request_api("answerCallbackQuery", params)
+        try:
+            await self._request_api("answerCallbackQuery", params)
+        except ClientResponseError:
+            logger.warning("The callback response time has expired.")
 
     async def _request_api(self, method: str, params: dict) -> dict:
         try:
