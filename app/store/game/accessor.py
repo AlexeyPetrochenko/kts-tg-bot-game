@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError, NoResultFound, SQLAlchemyError
+from sqlalchemy.orm import joinedload
 
 from app.game.models import (
     GameModel,
@@ -71,6 +72,27 @@ class GameAccessor:
                 )
             )
             return await session.scalar(stm)
+
+    async def get_game_by_game_id(self, game_id: int) -> GameModel:
+        async with self.store.database.session_maker() as session:
+            stm = (
+                select(GameModel)
+                .options(joinedload(GameModel.question))
+                .where(GameModel.game_id == game_id)
+            )
+            result = await session.scalar(stm)
+            return typing.cast(GameModel, result)
+
+    async def set_current_player(
+        self, game: GameModel, player: GameParticipantModel
+    ) -> None:
+        async with self.store.database.session_maker() as session:
+            game.current_player = player
+            session.add(game)
+            try:
+                await session.commit()
+            except SQLAlchemyError as e:
+                logger.error(e)
 
     async def create_questions(
         self, question: str, answer: str
@@ -151,14 +173,17 @@ class GameAccessor:
             stm = select(func.count(1)).where(
                 GameParticipantModel.game_id == game_id
             )
-            return await session.scalar(stm)
+            result = await session.scalar(stm)
+            return typing.cast(int, result)
 
     async def get_players_by_game_id(
         self, game_id: int
     ) -> Sequence[GameParticipantModel]:
         async with self.store.database.session_maker() as session:
-            stm = select(GameParticipantModel).where(
-                GameParticipantModel.game_id == game_id
+            stm = (
+                select(GameParticipantModel)
+                .options(joinedload(GameParticipantModel.user))
+                .where(GameParticipantModel.game_id == game_id)
             )
             result = await session.scalars(stm)
             return result.all()
@@ -167,11 +192,15 @@ class GameAccessor:
         self, game_id: int
     ) -> GameParticipantModel | None:
         async with self.store.database.session_maker() as session:
-            stm = select(GameParticipantModel).where(
-                and_(
-                    GameParticipantModel.game_id == game_id,
-                    GameParticipantModel.state
-                    == GameParticipantState.ACTIVE_TURN,
+            stm = (
+                select(GameParticipantModel)
+                .options(joinedload(GameParticipantModel.user))
+                .where(
+                    and_(
+                        GameParticipantModel.game_id == game_id,
+                        GameParticipantModel.state
+                        == GameParticipantState.ACTIVE_TURN,
+                    )
                 )
             )
             return await session.scalar(stm)

@@ -27,7 +27,7 @@ class Database:
 
     async def connect(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         self.engine = create_async_engine(
-            self.store.config.database.DATABASE_URL
+            self.store.config.database.DATABASE_URL,
         )
         self.session_maker = async_sessionmaker(
             bind=self.engine, expire_on_commit=False

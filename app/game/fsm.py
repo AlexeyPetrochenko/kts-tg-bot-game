@@ -4,6 +4,8 @@ import typing
 from app.game.models import GameModel, GameState
 from app.game.states import (
     BaseFsmState,
+    CheckWinnerFsmState,
+    FinishGameFsmState,
     NextPlayerTurnFsmState,
     PlayersWaitingFsmState,
     PlayerTurnFsmState,
@@ -22,6 +24,7 @@ class Fsm:
         self.chat_id = chat_id
         self.states: dict[GameState, BaseFsmState] = {}
         self.current_state: BaseFsmState | None = None
+        self.current_player_tg_id: int | None = None
         self._game_id: int | None = None
 
     @property
@@ -37,10 +40,20 @@ class Fsm:
         self._game_id = id_
 
     async def restore_current_state(self, game: GameModel) -> None:
-        # TODO: Написать логику по восстановлению игры из БД
         self.game_id = game.game_id
-        self.current_state = self.states.get(game.state)
-        logger.info("Тут будет логика по восстановлению игры")
+        if game.state == GameState.WAITING_FOR_PLAYERS:
+            self.current_state = self.states.get(game.state)
+            await self.update_current_state()
+            if game.state == GameState.WAITING_FOR_PLAYERS:
+                await self.store.tg_api.send_button_join(self.chat_id)
+            return
+        if game.state == GameState.PLAYER_TURN:
+            player = await self.store.game_accessor.get_active_player(
+                game.game_id
+            )
+            self.current_player_tg_id = player.user.tg_user_id
+
+        await self.set_current_state(game.state)
 
     async def set_current_state(self, state: GameState) -> None:
         if self.current_state == self.states.get(state):
@@ -56,7 +69,7 @@ class Fsm:
     def add_state(
         self, name_state: GameState, state: type[BaseFsmState]
     ) -> None:
-        self.states[name_state] = state(self)
+        self.states[name_state] = state(self, name_state)
 
 
 def setup_fsm(store: "Store", chat_id: int) -> Fsm:
@@ -64,4 +77,6 @@ def setup_fsm(store: "Store", chat_id: int) -> Fsm:
     fsm.add_state(GameState.WAITING_FOR_PLAYERS, PlayersWaitingFsmState)
     fsm.add_state(GameState.NEXT_PLAYER_TURN, NextPlayerTurnFsmState)
     fsm.add_state(GameState.PLAYER_TURN, PlayerTurnFsmState)
+    fsm.add_state(GameState.CHECK_WINNER, CheckWinnerFsmState)
+    fsm.add_state(GameState.GAME_FINISHED, FinishGameFsmState)
     return fsm

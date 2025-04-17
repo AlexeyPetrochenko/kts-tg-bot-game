@@ -7,13 +7,10 @@ from app.store.database.sqlalchemy_base import BaseModel
 
 
 class GameState(enum.StrEnum):
-    WAITING_FOR_GAME = "waiting_for_game"
     WAITING_FOR_PLAYERS = "waiting_for_players"
-    START_GAME = "start_game"
     PLAYER_TURN = "player_turn"
-    PLAYER_TURN_LETTER = "player_turn_letter"
-    PLAYER_TURN_WORD = "player_turn_word"
     NEXT_PLAYER_TURN = "next_player_turn"
+    CHECK_WINNER = "check_winner"
     GAME_FINISHED = "game_finished"
 
 
@@ -36,12 +33,22 @@ class GameModel(BaseModel):
     question_id: Mapped[int] = mapped_column(
         ForeignKey("questions.question_id")
     )
-    revealed_letter: Mapped[str] = mapped_column(default="")
+    revealed_letters: Mapped[str] = mapped_column(default="")
+    current_player_id: Mapped[int | None] = mapped_column(
+        ForeignKey("game_participants.participant_id", ondelete="SET NULL")
+    )
 
+    current_player: Mapped["GameParticipantModel"] = relationship(
+        back_populates="current_game",
+        foreign_keys=[current_player_id],
+        lazy="joined",
+        uselist=False,
+    )
     question: Mapped["QuestionModel"] = relationship()
     game_participants: Mapped[list["GameParticipantModel"]] = relationship(
         back_populates="game",
         cascade="all, delete-orphan",
+        foreign_keys="[GameParticipantModel.game_id]",
     )
 
 
@@ -74,12 +81,16 @@ class GameParticipantModel(BaseModel):
     state: Mapped[GameParticipantState] = mapped_column(
         default=GameParticipantState.WAITING,
     )
-    # TODO: Сделать поле обязательным
-    turn_order: Mapped[int | None]
+    turn_order: Mapped[int]
     points: Mapped[int] = mapped_column(default=0)
 
     game: Mapped["GameModel"] = relationship(
         back_populates="game_participants",
+        foreign_keys=[game_id],
+    )
+    current_game: Mapped["GameModel"] = relationship(
+        back_populates="current_player",
+        foreign_keys="[GameModel.current_player_id]",
     )
     user: Mapped["UserModel"] = relationship(
         back_populates="game_participations",
