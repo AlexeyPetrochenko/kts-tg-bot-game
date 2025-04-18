@@ -49,10 +49,6 @@ class PlayersWaitingFsmState(BaseFsmState):
         await self.fsm.store.tg_api.send_button_join(self.fsm.chat_id)
 
     async def exit_(self) -> None:
-        # await self.fsm.store.game_accessor.update_game_state(
-        #     self.fsm.game_id,
-        #     GameState.NEXT_PLAYER_TURN,
-        # )
         logger.info("PlayersWaitingFsmState [EXIT]")
 
     async def update_(self, context: Message | None = None) -> None:
@@ -82,10 +78,6 @@ class NextPlayerTurnFsmState(BaseFsmState):
         await self.fsm.set_current_state(GameState.PLAYER_TURN)
 
     async def exit_(self) -> None:
-        # await self.fsm.store.game_accessor.update_game_state(
-        #     self.fsm.game_id,
-        #     GameState.PLAYER_TURN,
-        # )
         logger.info("NextPlayerTurnFsmState [EXIT]")
 
     async def _pass_turn(
@@ -197,6 +189,8 @@ class CheckWinnerFsmState(BaseFsmState):
                 GameState.GAME_FINISHED,
             )
             await self.fsm.set_current_state(GameState.GAME_FINISHED)
+            return
+        await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
 
     async def exit_(self) -> None:
         logger.info("CheckWinnerFsmState [EXIT]")
@@ -332,4 +326,42 @@ class WaitingWordFsmState(BaseFsmState):
         pass
 
     async def update_(self, context: Message | None = None) -> None:
-        pass
+        logger.info("WaitingWordFsmState [UPDATE]")
+        word = context.text.strip().upper()
+        game = await self.fsm.store.game_accessor.get_game_by_game_id(
+            self.fsm.game_id
+        )
+        player = game.current_player
+
+        # TODO: Слово названо верно
+        if word == game.question.answer.upper():
+            await self.fsm.store.tg_api.send_message(
+                self.fsm.chat_id,
+                f"@{player.user.username} назвал слово: {word} и это верно",
+            )
+            # TODO: Начисляем очки и меняем статус
+            await self.fsm.store.game_accessor.add_points_player(
+                player,
+                self.fsm.bonus_points,
+            )
+            await self.fsm.store.game_accessor.update_status_player(
+                player,
+                GameParticipantState.WINNER,
+            )
+            await self.fsm.set_current_state(GameState.GAME_FINISHED)
+            return
+
+        # TODO: Слово названо неверно
+        await self.fsm.store.tg_api.send_message(
+            self.fsm.chat_id,
+            f"@{player.user.username} назвал слово: {word} и это неверно",
+        )
+        await self.fsm.store.tg_api.send_message(
+            self.fsm.chat_id,
+            f"@{player.user.username} Выбывает из игры",
+        )
+        await self.fsm.store.game_accessor.update_status_player(
+            player,
+            GameParticipantState.LOSER,
+        )
+        await self.fsm.set_current_state(GameState.CHECK_WINNER)

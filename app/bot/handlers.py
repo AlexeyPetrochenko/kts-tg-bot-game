@@ -29,6 +29,7 @@ class BaseHandler(ABC):
         await self.store.tg_api.answer_callback(callback.callback_id, text)
 
 
+# TODO: Много дублирования кода как лучше от него избавится даже не знаю
 class StartHandler(BaseHandler):
     async def handle(self, callback: CallbackQuery) -> None:
         self.save_log(callback)
@@ -163,6 +164,27 @@ class SayLetterHandler(BaseHandler):
 class SayWordHandler(BaseHandler):
     async def handle(self, callback: CallbackQuery) -> None:
         self.save_log(callback)
+        # TODO: Проверяем есть ли запущенная игра
+        fsm = self.store.fsm_manager.get_fsm(callback.chat_id)
+        if fsm is None:
+            await self.answer_callback(callback, "Нет активной игры")
+            return
+
+        # TODO: Проверяем state
+        if fsm.current_state.enum_state != GameState.PLAYER_TURN:
+            await self.answer_callback(callback, "Игра на другом этапе")
+            return
+
+        # TODO: Проверяем ход пользователя
+        if callback.from_id != fsm.current_player_tg_id:
+            await self.answer_callback(callback, "Дождитесь своего хода")
+            return
+        await self.answer_callback(callback, "Введи слово")
+        await self.store.tg_api.send_message(
+            callback.chat_id, f"@{callback.from_username} Ждем слово!"
+        )
+        # Делаем переход в состояние WAITING_FOR_WORD
+        await fsm.set_current_state(GameState.WAITING_FOR_WORD)
 
 
 class TextMessageHandler:
@@ -179,3 +201,9 @@ class TextMessageHandler:
         # Проверяем букву
         if fsm.current_state.enum_state == GameState.WAITING_FOR_LETTER:
             await fsm.update_current_state(message)
+            return
+
+        # Проверяем слово
+        if fsm.current_state.enum_state == GameState.WAITING_FOR_WORD:
+            await fsm.update_current_state(message)
+            return
