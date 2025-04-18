@@ -77,11 +77,27 @@ class GameAccessor:
         async with self.store.database.session_maker() as session:
             stm = (
                 select(GameModel)
-                .options(joinedload(GameModel.question))
+                .options(
+                    joinedload(GameModel.question),
+                    joinedload(GameModel.current_player).joinedload(
+                        GameParticipantModel.user
+                    ),
+                )
                 .where(GameModel.game_id == game_id)
             )
             result = await session.scalar(stm)
             return typing.cast(GameModel, result)
+
+    async def update_revealed_letters(
+        self, game: GameModel, letter: str
+    ) -> None:
+        async with self.store.database.session_maker() as session:
+            game.revealed_letters += letter
+            session.add(game)
+            try:
+                await session.commit()
+            except SQLAlchemyError as e:
+                logger.error(e)
 
     async def set_current_player(
         self, game: GameModel, player: GameParticipantModel
@@ -89,6 +105,19 @@ class GameAccessor:
         async with self.store.database.session_maker() as session:
             game.current_player = player
             session.add(game)
+            try:
+                await session.commit()
+            except SQLAlchemyError as e:
+                logger.error(e)
+
+    async def add_points_player(
+        self,
+        player: GameParticipantModel,
+        points: int,
+    ) -> None:
+        async with self.store.database.session_maker() as session:
+            player.points += points
+            session.add(player)
             try:
                 await session.commit()
             except SQLAlchemyError as e:

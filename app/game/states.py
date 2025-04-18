@@ -4,6 +4,7 @@ import typing
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
+from app.bot.schemes import Message
 from app.game.models import (
     GameParticipantModel,
     GameParticipantState,
@@ -31,7 +32,7 @@ class BaseFsmState(ABC):
         pass
 
     @abstractmethod
-    async def update_(self) -> None:
+    async def update_(self, context: Message | None = None) -> None:
         pass
 
 
@@ -48,13 +49,13 @@ class PlayersWaitingFsmState(BaseFsmState):
         await self.fsm.store.tg_api.send_button_join(self.fsm.chat_id)
 
     async def exit_(self) -> None:
-        await self.fsm.store.game_accessor.update_game_state(
-            self.fsm.game_id,
-            GameState.NEXT_PLAYER_TURN,
-        )
+        # await self.fsm.store.game_accessor.update_game_state(
+        #     self.fsm.game_id,
+        #     GameState.NEXT_PLAYER_TURN,
+        # )
         logger.info("PlayersWaitingFsmState [EXIT]")
 
-    async def update_(self) -> None:
+    async def update_(self, context: Message | None = None) -> None:
         logger.info("PlayersWaitingFsmState [UPDATE]")
         count = await self.fsm.store.game_accessor.get_count_participant(
             self.fsm.game_id
@@ -74,17 +75,17 @@ class NextPlayerTurnFsmState(BaseFsmState):
         )
         active_player = game.current_player
         next_active_player = await self._pass_turn(players, active_player)
+        self.fsm.current_player_tg_id = next_active_player.user.tg_user_id
         await self.fsm.store.game_accessor.set_current_player(
             game, next_active_player
         )
-        self.current_player_tg_id = next_active_player.user.tg_user_id
         await self.fsm.set_current_state(GameState.PLAYER_TURN)
 
     async def exit_(self) -> None:
-        await self.fsm.store.game_accessor.update_game_state(
-            self.fsm.game_id,
-            GameState.PLAYER_TURN,
-        )
+        # await self.fsm.store.game_accessor.update_game_state(
+        #     self.fsm.game_id,
+        #     GameState.PLAYER_TURN,
+        # )
         logger.info("NextPlayerTurnFsmState [EXIT]")
 
     async def _pass_turn(
@@ -114,7 +115,7 @@ class NextPlayerTurnFsmState(BaseFsmState):
         logger.info("Next turn player: %s", next_active_player.user.username)
         return next_active_player
 
-    async def update_(self) -> None:
+    async def update_(self, context: Message | None = None) -> None:
         logger.info("NextPlayerTurnFsmState [UPDATE]")
 
     @staticmethod
@@ -141,25 +142,25 @@ class PlayerTurnFsmState(BaseFsmState):
         game = await self.fsm.store.game_accessor.get_game_by_game_id(
             self.fsm.game_id
         )
-        word = self._mask_word(game.question.answer, game.revealed_letters)
-        bonus_points = self._spin_wheel()
+        word = self.mask_word(game.question.answer, game.revealed_letters)
+        self.fsm.bonus_points = self._spin_wheel()
         await self.fsm.store.tg_api.send_turn_buttons(
             self.fsm.chat_id,
             active_player.user.username,  # type: ignore[attr-defined]
             game.question.question,
             word,
             active_player.points,
-            bonus_points,
+            self.fsm.bonus_points,
         )
 
     async def exit_(self) -> None:
         logger.info("PlayerTurnFsmState [EXIT]")
 
-    async def update_(self) -> None:
+    async def update_(self, context: Message | None = None) -> None:
         logger.info("PlayerTurnFsmState [UPDATE]")
 
     @staticmethod
-    def _mask_word(word: str, revealed_letters: str) -> str:
+    def mask_word(word: str, revealed_letters: str) -> str:
         letters = set(revealed_letters.upper())
         mask_word = []
         for letter in word.upper():
@@ -179,6 +180,8 @@ class PlayerTurnFsmState(BaseFsmState):
 class CheckWinnerFsmState(BaseFsmState):
     async def enter_(self) -> None:
         logger.info("CheckWinnerFsmState [ENTER]")
+
+        # Проверка количества активных игроков
         players = await self.fsm.store.game_accessor.get_players_by_game_id(
             self.fsm.game_id
         )
@@ -189,16 +192,16 @@ class CheckWinnerFsmState(BaseFsmState):
                 winner,
                 GameParticipantState.WINNER,
             )
+            await self.fsm.store.game_accessor.update_game_state(
+                self.fsm.game_id,
+                GameState.GAME_FINISHED,
+            )
             await self.fsm.set_current_state(GameState.GAME_FINISHED)
 
     async def exit_(self) -> None:
         logger.info("CheckWinnerFsmState [EXIT]")
-        await self.fsm.store.game_accessor.update_game_state(
-            self.fsm.game_id,
-            GameState.GAME_FINISHED,
-        )
 
-    async def update_(self) -> None:
+    async def update_(self, context: Message | None = None) -> None:
         pass
 
     @staticmethod
@@ -239,9 +242,94 @@ class FinishGameFsmState(BaseFsmState):
             f"{losers_text}"
         )
         await self.fsm.store.tg_api.send_message(self.fsm.chat_id, text)
+        self.fsm.store.fsm_manager.remove_fsm(self.fsm.chat_id)
 
     async def exit_(self) -> None:
         logger.info("FinishGameFsmState [EXIT]")
 
-    async def update_(self) -> None:
+    async def update_(self, context: Message | None = None) -> None:
+        pass
+
+
+class WaitingLetterFsmState(BaseFsmState):
+    async def enter_(self) -> None:
+        logger.info("WaitingLetterFsmState [ENTER]")
+
+    async def exit_(self) -> None:
+        logger.info("WaitingLetterFsmState [EXIT]")
+
+    async def send_message(self, base_text: str, text: str) -> None:
+        await self.fsm.store.tg_api.send_message(
+            self.fsm.chat_id, f"{base_text}\n{text}"
+        )
+
+    async def update_(self, context: Message | None = None) -> None:
+        logger.info("WaitingLetterFsmState [UPDATE]")
+
+        letter = context.text.upper()
+        game = await self.fsm.store.game_accessor.get_game_by_game_id(
+            self.fsm.game_id
+        )
+        player = game.current_player
+        base_text = f"@{player.user.username} назвал букву: {letter}"
+
+        # TODO: Неверный формат
+        if len(letter) != 1 or not letter.isalpha():
+            await self.send_message(base_text, "Это не буква!")
+            await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
+            return
+
+        # TODO: Такую букву уже называли
+        if letter in game.revealed_letters.upper():
+            await self.send_message(base_text, "Такую букву уже называли!")
+            await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
+            return
+
+        # TODO: Неверная буква
+        if letter not in game.question.answer.upper():
+            await self.send_message(base_text, "Такой буквы нет в слове")
+            await self.fsm.store.game_accessor.update_revealed_letters(
+                game,
+                letter,
+            )
+            await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
+            return
+
+        # TODO: Буква названа верно
+        await self.send_message(base_text, "Верно!")
+        await self.fsm.store.game_accessor.update_revealed_letters(
+            game,
+            letter,
+        )
+        # TODO: Начисляем очки и снова ходим
+        await self.fsm.store.game_accessor.add_points_player(
+            player,
+            self.fsm.bonus_points,
+        )
+        # TODO: Проверяем отгадано ли слово
+        if self.is_word_guessed(game.question.answer, game.revealed_letters):
+            await self.fsm.store.game_accessor.update_status_player(
+                player,
+                GameParticipantState.WINNER,
+            )
+            await self.fsm.set_current_state(GameState.GAME_FINISHED)
+            return
+        # TODO: Если не отгадано ходит снова
+        await self.fsm.set_current_state(GameState.PLAYER_TURN)
+
+    @staticmethod
+    def is_word_guessed(word: str, revealed_letters: str) -> bool:
+        word_letters = {ch.upper() for ch in word if ch.isalpha()}
+        revealed_set = set(revealed_letters.upper())
+        return word_letters.issubset(revealed_set)
+
+
+class WaitingWordFsmState(BaseFsmState):
+    async def enter_(self) -> None:
+        pass
+
+    async def exit_(self) -> None:
+        pass
+
+    async def update_(self, context: Message | None = None) -> None:
         pass

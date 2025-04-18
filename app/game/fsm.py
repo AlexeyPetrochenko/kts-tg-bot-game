@@ -1,6 +1,7 @@
 import logging
 import typing
 
+from app.bot.schemes import Message
 from app.game.models import GameModel, GameState
 from app.game.states import (
     BaseFsmState,
@@ -9,6 +10,8 @@ from app.game.states import (
     NextPlayerTurnFsmState,
     PlayersWaitingFsmState,
     PlayerTurnFsmState,
+    WaitingLetterFsmState,
+    WaitingWordFsmState,
 )
 from app.web.exceptions import FsmError
 
@@ -26,6 +29,7 @@ class Fsm:
         self.current_state: BaseFsmState | None = None
         self.current_player_tg_id: int | None = None
         self._game_id: int | None = None
+        self.bonus_points: int = 0
 
     @property
     def game_id(self) -> int:
@@ -60,11 +64,19 @@ class Fsm:
             return
         if self.current_state is not None:
             await self.current_state.exit_()
+        try:
+            await self.store.game_accessor.update_game_state(
+                self.game_id, state
+            )
+        except FsmError:
+            logger.info("The status has not yet been determined.")
         self.current_state = self.states[state]
         await self.current_state.enter_()
 
-    async def update_current_state(self) -> None:
-        await self.current_state.update_()
+    async def update_current_state(
+        self, context: Message | None = None
+    ) -> None:
+        await self.current_state.update_(context)
 
     def add_state(
         self, name_state: GameState, state: type[BaseFsmState]
@@ -77,6 +89,8 @@ def setup_fsm(store: "Store", chat_id: int) -> Fsm:
     fsm.add_state(GameState.WAITING_FOR_PLAYERS, PlayersWaitingFsmState)
     fsm.add_state(GameState.NEXT_PLAYER_TURN, NextPlayerTurnFsmState)
     fsm.add_state(GameState.PLAYER_TURN, PlayerTurnFsmState)
+    fsm.add_state(GameState.WAITING_FOR_LETTER, WaitingLetterFsmState)
+    fsm.add_state(GameState.WAITING_FOR_WORD, WaitingWordFsmState)
     fsm.add_state(GameState.CHECK_WINNER, CheckWinnerFsmState)
     fsm.add_state(GameState.GAME_FINISHED, FinishGameFsmState)
     return fsm
