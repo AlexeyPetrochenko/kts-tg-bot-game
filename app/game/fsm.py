@@ -33,8 +33,9 @@ class Fsm:
 
     async def restore_current_state(self, game: GameModel) -> None:
         self.current_state = self.states.get(game.state)
-        self.current_player_tg_id = game.current_player.user.tg_user_id
-        self.current_player_username = game.current_player.user.username
+        if game.state != GameState.WAITING_FOR_PLAYERS:
+            self.current_player_tg_id = game.current_player.user.tg_user_id
+            self.current_player_username = game.current_player.user.username
         await self.current_state.enter_()
 
     async def set_current_state(self, state: GameState) -> None:

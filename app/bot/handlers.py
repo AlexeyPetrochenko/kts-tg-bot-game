@@ -46,17 +46,21 @@ class StartHandler(BaseHandler):
         game = await self.store.game_accessor.get_running_game(callback.chat_id)
         if game:
             fsm = self.store.fsm_manager.set_fsm(callback.chat_id, game.game_id)
-            logger.info("Restoring the game")
+            logger.info(
+                "Restoring the game_id: %s in chat_id: %s",
+                game.game_id,
+                game.chat_id,
+            )
             await self.answer_callback(callback, "Игра восстановлена")
             await fsm.restore_current_state(game)
         else:
-            logger.info("Starting new game")
             question = await self.store.game_accessor.get_random_question()
             game = await self.store.game_accessor.create_game(
                 chat_id=callback.chat_id,
                 question_id=question.question_id,
                 state=GameState.WAITING_FOR_PLAYERS,
             )
+            logger.info("Starting new game in chat_id: %s", game.chat_id)
             fsm = self.store.fsm_manager.set_fsm(callback.chat_id, game.game_id)
             await self.answer_callback(callback, "Старт игры")
             await fsm.set_current_state(GameState.WAITING_FOR_PLAYERS)
