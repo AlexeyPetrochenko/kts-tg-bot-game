@@ -65,7 +65,9 @@ class GameAccessor:
 
     async def get_running_game(self, chat_id: int) -> GameModel | None:
         async with self.store.database.session_maker() as session:
-            stm = select(GameModel).where(
+            stm = select(GameModel).options(
+                joinedload(GameModel.current_player).joinedload(GameParticipantModel.user)
+            ).where(
                 and_(
                     GameModel.chat_id == chat_id,
                     GameModel.state != GameState.GAME_FINISHED,
@@ -250,3 +252,14 @@ class GameAccessor:
                     player.participant_id,
                     status,
                 ) from e
+
+    async def update_status_many_players(
+        self,
+        players: list[GameParticipantModel],
+        status: GameParticipantState
+    ) -> None:
+        async with self.store.database.session_maker() as session:
+            for p in players:
+                p.state = status
+            session.add_all(players)
+            await session.commit()

@@ -5,6 +5,11 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
 from app.bot.schemes import Message
+from app.game.config import (
+    MIN_NUMBER_OF_PARTICIPANTS,
+    SECTOR_WEIGHTS,
+    WHEEL_SECTORS,
+)
 from app.game.models import (
     GameParticipantModel,
     GameParticipantState,
@@ -15,7 +20,6 @@ if typing.TYPE_CHECKING:
     from app.game.fsm import Fsm
 
 logger = logging.getLogger(__name__)
-NUMBER_OF_PARTICIPANTS = 2
 
 
 class BaseFsmState(ABC):
@@ -39,13 +43,6 @@ class BaseFsmState(ABC):
 class PlayersWaitingFsmState(BaseFsmState):
     async def enter_(self) -> None:
         logger.info("PlayersWaitingFsmState [ENTER]")
-        question = await self.fsm.store.game_accessor.get_random_question()
-        game = await self.fsm.store.game_accessor.create_game(
-            chat_id=self.fsm.chat_id,
-            question_id=question.question_id,
-            state=GameState.WAITING_FOR_PLAYERS,
-        )
-        self.fsm.game_id = game.game_id
         await self.fsm.store.tg_api.send_button_join(self.fsm.chat_id)
 
     async def exit_(self) -> None:
@@ -56,7 +53,7 @@ class PlayersWaitingFsmState(BaseFsmState):
         count = await self.fsm.store.game_accessor.get_count_participant(
             self.fsm.game_id
         )
-        if count >= NUMBER_OF_PARTICIPANTS:
+        if count >= MIN_NUMBER_OF_PARTICIPANTS:
             await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
 
 
@@ -72,6 +69,7 @@ class NextPlayerTurnFsmState(BaseFsmState):
         active_player = game.current_player
         next_active_player = await self._pass_turn(players, active_player)
         self.fsm.current_player_tg_id = next_active_player.user.tg_user_id
+        self.fsm.current_player_username = next_active_player.user.username
         await self.fsm.store.game_accessor.set_current_player(
             game, next_active_player
         )
@@ -164,11 +162,10 @@ class PlayerTurnFsmState(BaseFsmState):
 
     @staticmethod
     def _spin_wheel() -> int:
-        points = [0, 100, 250, 350, 400, 450, 500, 600, 750, 1000]
-        weights = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        return random.choices(points, weights=weights, k=1)[0]
+        return random.choices(WHEEL_SECTORS, weights=SECTOR_WEIGHTS, k=1)[0]
 
 
+# TODO: В этом состоянии проверяется победитель по количеству участников
 class CheckWinnerFsmState(BaseFsmState):
     async def enter_(self) -> None:
         logger.info("CheckWinnerFsmState [ENTER]")
@@ -222,6 +219,12 @@ class FinishGameFsmState(BaseFsmState):
         winner = [p for p in players if p.state == GameParticipantState.WINNER]
         losers = [p for p in players if p.state != GameParticipantState.WINNER]
 
+        # TODO: Проставляем статусы LOSER проигравшим не покинувшим игру
+        await self.fsm.store.game_accessor.update_status_many_players(
+            [p for p in losers if p.state == GameParticipantState.WAITING],
+            GameParticipantState.LOSER
+        )
+
         w = winner[0]
         winner_text = f"🏆 Победитель: @{w.user.username} с {w.points} очками"
 
@@ -248,6 +251,9 @@ class FinishGameFsmState(BaseFsmState):
 class WaitingLetterFsmState(BaseFsmState):
     async def enter_(self) -> None:
         logger.info("WaitingLetterFsmState [ENTER]")
+        await self.fsm.store.tg_api.send_message(
+            self.fsm.chat_id, f"@{self.fsm.current_player_username} Ждем букву!"
+        )
 
     async def exit_(self) -> None:
         logger.info("WaitingLetterFsmState [EXIT]")
@@ -320,7 +326,9 @@ class WaitingLetterFsmState(BaseFsmState):
 
 class WaitingWordFsmState(BaseFsmState):
     async def enter_(self) -> None:
-        pass
+        await self.fsm.store.tg_api.send_message(
+            self.fsm.chat_id, f"@{self.fsm.current_player_username} Ждем слово!"
+        )
 
     async def exit_(self) -> None:
         pass
