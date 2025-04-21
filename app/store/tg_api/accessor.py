@@ -45,8 +45,8 @@ class TGApiAccessor:
             else:
                 self.offset = update_scheme + 1
 
-    async def send_echo_message(self, message: Message) -> None:
-        params = {"chat_id": message.chat_id, "text": message.text}
+    async def send_message(self, chat_id: int, text: str) -> None:
+        params = {"chat_id": chat_id, "text": text}
         await self._request_api("sendMessage", params)
 
     # TODO: Возможно создать один метод для кнопок и dict с наполнением
@@ -72,6 +72,36 @@ class TGApiAccessor:
         params = {
             "chat_id": chat_id,
             "text": "Присоединиться к игре?",
+            "reply_markup": reply_markup,
+        }
+        await self._request_api("sendMessage", params)
+
+    async def send_turn_buttons(
+        self,
+        chat_id: int,
+        username: str,
+        question: str,
+        word: str,
+        user_points: int,
+        bonus_points: int,
+    ) -> None:
+        text = f"""
+            Ходит: {username}
+            Ваши очки: {user_points}
+            Вопрос: {question}
+            Слово: {word}
+            Сектор: {bonus_points} очков на барабане
+            """
+        reply_markup = {
+            "inline_keyboard": [
+                [{"text": "Покинуть игру", "callback_data": "/leave_game"}],
+                [{"text": "Назвать букву", "callback_data": "/say_letter"}],
+                [{"text": "Назвать слово", "callback_data": "/say_word"}],
+            ]
+        }
+        params = {
+            "chat_id": chat_id,
+            "text": text,
             "reply_markup": reply_markup,
         }
         await self._request_api("sendMessage", params)
