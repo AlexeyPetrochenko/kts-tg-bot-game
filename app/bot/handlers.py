@@ -17,22 +17,26 @@ class BaseHandler(ABC):
     async def handle(self, callback: CallbackQuery) -> None:
         pass
 
+    async def __call__(self, callback: CallbackQuery) -> None:
+        self.save_log(callback)
+        await self.handle(callback)
+
     def save_log(self, callback: CallbackQuery) -> None:
         logger.info(
-            "%s: User %s, clicked button %s",
+            "%s: User %s, clicked button %s, in chat_id: %s",
             self.__class__.__name__,
             callback.from_username,
             callback.command,
+            callback.chat_id,
         )
 
     async def answer_callback(self, callback: CallbackQuery, text: str) -> None:
         await self.store.tg_api.answer_callback(callback.callback_id, text)
 
 
+# TODO: Много дублирования кода как лучше от него избавится даже не знаю
 class StartHandler(BaseHandler):
     async def handle(self, callback: CallbackQuery) -> None:
-        self.save_log(callback)
-
         # TODO: Проверяем нет ли запущенной игры
         if self.store.fsm_manager.get_fsm(callback.chat_id):
             await self.answer_callback(callback, "Игра уже запущена")
@@ -40,25 +44,26 @@ class StartHandler(BaseHandler):
 
         # TODO: Проверяем нет ли незавершенных игр
         game = await self.store.game_accessor.get_running_game(callback.chat_id)
-        fsm = self.store.fsm_manager.set_fsm(callback.chat_id)
-
         if game:
+            fsm = self.store.fsm_manager.set_fsm(callback.chat_id, game.game_id)
             logger.info("Restoring the game")
             await self.answer_callback(callback, "Игра восстановлена")
             await fsm.restore_current_state(game)
         else:
             logger.info("Starting new game")
-            await self.store.tg_api.answer_callback(
-                callback.callback_id,
-                "Старт игры",
+            question = await self.store.game_accessor.get_random_question()
+            game = await self.store.game_accessor.create_game(
+                chat_id=callback.chat_id,
+                question_id=question.question_id,
+                state=GameState.WAITING_FOR_PLAYERS,
             )
+            fsm = self.store.fsm_manager.set_fsm(callback.chat_id, game.game_id)
+            await self.answer_callback(callback, "Старт игры")
             await fsm.set_current_state(GameState.WAITING_FOR_PLAYERS)
 
 
 class JoinHandler(BaseHandler):
     async def handle(self, callback: CallbackQuery) -> None:
-        self.save_log(callback)
-
         # TODO: Проверяем есть ли активная игра
         fsm = self.store.fsm_manager.get_fsm(callback.chat_id)
         if fsm is None:
@@ -102,8 +107,6 @@ class JoinHandler(BaseHandler):
 
 class LeaveGameHandler(BaseHandler):
     async def handle(self, callback: CallbackQuery) -> None:
-        self.save_log(callback)
-
         # TODO: Проверяем есть ли запущенная игра
         fsm = self.store.fsm_manager.get_fsm(callback.chat_id)
         if fsm is None:
@@ -135,7 +138,6 @@ class LeaveGameHandler(BaseHandler):
 
 class SayLetterHandler(BaseHandler):
     async def handle(self, callback: CallbackQuery) -> None:
-        self.save_log(callback)
         # TODO: Проверяем есть ли запущенная игра
         fsm = self.store.fsm_manager.get_fsm(callback.chat_id)
         if fsm is None:
@@ -153,16 +155,36 @@ class SayLetterHandler(BaseHandler):
             return
 
         await self.answer_callback(callback, "Введи одну букву")
-        await self.store.tg_api.send_message(
-            callback.chat_id, f"@{callback.from_username} Ждем букву!"
-        )
+        # await self.store.tg_api.send_message(
+        #     callback.chat_id, f"@{callback.from_username} Ждем букву!"
+        # )
         # Делаем переход в состояние WAITING_FOR_LETTER
         await fsm.set_current_state(GameState.WAITING_FOR_LETTER)
 
 
 class SayWordHandler(BaseHandler):
     async def handle(self, callback: CallbackQuery) -> None:
-        self.save_log(callback)
+        # TODO: Проверяем есть ли запущенная игра
+        fsm = self.store.fsm_manager.get_fsm(callback.chat_id)
+        if fsm is None:
+            await self.answer_callback(callback, "Нет активной игры")
+            return
+
+        # TODO: Проверяем state
+        if fsm.current_state.enum_state != GameState.PLAYER_TURN:
+            await self.answer_callback(callback, "Игра на другом этапе")
+            return
+
+        # TODO: Проверяем ход пользователя
+        if callback.from_id != fsm.current_player_tg_id:
+            await self.answer_callback(callback, "Дождитесь своего хода")
+            return
+        await self.answer_callback(callback, "Введи слово")
+        # await self.store.tg_api.send_message(
+        #     callback.chat_id, f"@{callback.from_username} Ждем слово!"
+        # )
+        # Делаем переход в состояние WAITING_FOR_WORD
+        await fsm.set_current_state(GameState.WAITING_FOR_WORD)
 
 
 class TextMessageHandler:
@@ -179,3 +201,9 @@ class TextMessageHandler:
         # Проверяем букву
         if fsm.current_state.enum_state == GameState.WAITING_FOR_LETTER:
             await fsm.update_current_state(message)
+            return
+
+        # Проверяем слово
+        if fsm.current_state.enum_state == GameState.WAITING_FOR_WORD:
+            await fsm.update_current_state(message)
+            return

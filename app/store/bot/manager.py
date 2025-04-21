@@ -29,8 +29,8 @@ class BotManager:
 
     async def handle_updates(self, update: Update) -> None:
         if isinstance(update.body, CallbackQuery):
-            command = self.handlers.get(update.body.command)
-            await command.handle(update.body)
+            handler = self.handlers.get(update.body.command)
+            await handler(update.body)
         elif isinstance(update.body, Message):
             await self.default_handler.handle(update.body)
 
