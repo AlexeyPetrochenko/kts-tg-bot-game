@@ -222,7 +222,7 @@ class FinishGameFsmState(BaseFsmState):
         # TODO: Проставляем статусы LOSER проигравшим не покинувшим игру
         await self.fsm.store.game_accessor.update_status_many_players(
             [p for p in losers if p.state == GameParticipantState.WAITING],
-            GameParticipantState.LOSER
+            GameParticipantState.LOSER,
         )
 
         w = winner[0]
