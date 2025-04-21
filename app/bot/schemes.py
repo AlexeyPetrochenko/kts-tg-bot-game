@@ -3,15 +3,25 @@ from dataclasses import dataclass
 
 @dataclass
 class Message:
-    message_id: int
-    from_id: int
-    from_name: str
     chat_id: int
     text: str
-    date: str
+    message_id: int
+    from_id: int
+    from_username: str
+
+
+@dataclass
+class CallbackQuery:
+    callback_id: str
+    chat_id: int
+    command: str
+    message_id: int
+    from_id: int
+    from_username: str
 
 
 @dataclass
 class Update:
     update_id: int
-    message: Message
+    date: int
+    body: Message | CallbackQuery

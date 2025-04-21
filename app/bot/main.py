@@ -1,41 +1,25 @@
 import asyncio
 import logging
-import os
 
-from app.bot.poller import Poller
-from app.store.store import Store
-from app.web.config import load_config
+from app.bot.bot import setup_bot
+from app.web.config import get_config_path, load_config
 from app.web.logger import setup_logging
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
 
-def config_path() -> str:
-    if os.getenv("ENV") == "dev":
-        return os.path.join(
-            os.path.dirname(__file__), "..", "..", "local", "etc", "config.yaml"
-        )
-    return os.path.join(
-        os.path.dirname(__file__), "..", "..", "etc", "config.yaml"
-    )
-
-
 async def main() -> None:
-    config = load_config(config_path())
-    store = Store(config)
-    await store.tg_api.connect()
-    poller = Poller(store)
-
+    config = load_config(get_config_path())
+    bot = setup_bot(config)
     try:
-        poller.start()
+        await bot.run_bot()
         await asyncio.Event().wait()
     except Exception as e:
         logger.error(e)
     finally:
         logger.info("Bot stopped")
-        await poller.stop()
-        await store.tg_api.disconnect()
+        await bot.stop_bot()
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import typing
-from asyncio import Future, Task
+from asyncio import Task
 
 if typing.TYPE_CHECKING:
     from app.store import Store
@@ -18,7 +18,6 @@ class Poller:
     def start(self) -> None:
         self.is_running = True
         self.poll_task = asyncio.create_task(self.poll())
-        self.poll_task.add_done_callback(self._done_callback)
         logger.info("Polling started")
 
     async def stop(self) -> None:
@@ -27,12 +26,10 @@ class Poller:
             await self.poll_task
         logger.info("Poller Stopped")
 
-    def _done_callback(self, result: Future) -> None:
-        if result.exception():
-            logger.error(
-                "poller stopped with exception", exc_info=result.exception()
-            )
-
     async def poll(self) -> None:
         while self.is_running:
-            await self.store.tg_api.poll()
+            try:
+                await self.store.tg_api.poll()
+            except Exception as e:
+                logger.error("poller stopped with exception: %s", e)
+                await asyncio.sleep(5)
