@@ -17,6 +17,17 @@ class BotConfig:
 
 
 @dataclass
+class AdminConfig:
+    email: str
+    password: str
+
+
+@dataclass
+class SessionConfig:
+    key: str
+
+
+@dataclass
 class DatabaseConfig:
     host: str = "localhost"
     port: int = 5432
@@ -31,8 +42,10 @@ class DatabaseConfig:
 
 @dataclass
 class Config:
+    admin: AdminConfig | None = None
     bot: BotConfig | None = None
     database: DatabaseConfig | None = None
+    aiohttp_session: SessionConfig | None = None
 
 
 ConfigSchema = class_schema(Config)()

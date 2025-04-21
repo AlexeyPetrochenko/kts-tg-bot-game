@@ -3,6 +3,7 @@ from app.web.config import Config
 
 class Store:
     def __init__(self, config: Config) -> None:
+        from app.store.admin.accessor import AdminAccessor
         from app.store.bot.manager import setup_bot_manager
         from app.store.database.database import Database
         from app.store.game.accessor import GameAccessor
@@ -10,6 +11,7 @@ class Store:
         from app.store.tg_api.accessor import TGApiAccessor
 
         self.config = config
+        self.admin_accessor = AdminAccessor(self)
         self.bot_manager = setup_bot_manager(self)
         self.database = Database(self)
         self.game_accessor = GameAccessor(self)

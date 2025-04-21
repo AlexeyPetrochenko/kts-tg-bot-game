@@ -2,7 +2,7 @@ import logging
 import typing
 from collections.abc import Sequence
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.exc import IntegrityError, NoResultFound, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
@@ -34,6 +34,13 @@ logger = logging.getLogger(__name__)
 class GameAccessor:
     def __init__(self, store: "Store") -> None:
         self.store = store
+
+    async def connect(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        try:
+            await self.create_question("Тестовый вопрос", " Ответ")
+            logger.info("First question created successfully")
+        except IntegrityError:
+            logger.info("The first question has already been created")
 
     async def create_game(
         self,
@@ -131,7 +138,7 @@ class GameAccessor:
             except SQLAlchemyError as e:
                 logger.error(e)
 
-    async def create_questions(
+    async def create_question(
         self, question: str, answer: str
     ) -> QuestionModel:
         async with self.store.database.session_maker() as session:
@@ -143,6 +150,17 @@ class GameAccessor:
                 logger.error(e)
                 raise QuestionCreateError(question, answer) from e
             return question_model
+
+    async def delete_question_by_id(self, question_id: int) -> None:
+        async with self.store.database.session_maker() as session:
+            stm = delete(QuestionModel).where(
+                QuestionModel.question_id == question_id
+            )
+            await session.execute(stm)
+            try:
+                await session.commit()
+            except SQLAlchemyError as e:
+                logger.error(e)
 
     async def get_random_question(self) -> QuestionModel:
         async with self.store.database.session_maker() as session:

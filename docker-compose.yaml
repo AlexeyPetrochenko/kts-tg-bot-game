@@ -1,11 +1,52 @@
-  services:
+services:
 
-    db:
-      image: postgres:17.0-alpine3.20
-      environment:
-        POSTGRES_DB: ${DB_NAME}
-        POSTGRES_USER: ${DB_USER}
-        POSTGRES_PASSWORD: ${DB_PASS}
-      ports:
-        - "5432:5432"
+  db:
+    image: postgres:17.0-alpine3.20
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    ports:
+      - "5432:5432"
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DB_USER}", "-d", "${DB_NAME}"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+    networks:
+      - app-network
 
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "alembic upgrade head && python3 -m app.web.main"
+
+  bot:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "python3 -m app.bot.main"
+
+
+networks:
+  app-network:

@@ -71,3 +71,15 @@ class UpdateStatusPlayerError(AppError):
         )
         self.player_id = player_id
         self.status = status
+
+
+class AdminCreateError(AppError):
+    def __init__(self, email: str) -> None:
+        super().__init__(reason=f"This email: [{email}] is already taken")
+        self.email = email
+
+
+class AdminDeleteError(AppError):
+    def __init__(self, email: str) -> None:
+        super().__init__(reason=f"failed to remove admin:[{email}]")
+        self.email = email

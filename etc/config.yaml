@@ -1,9 +1,16 @@
 bot:
-  token: secret_token
+  token: your_secret_token
 
 database:
-  host: localhost
+  host: db
   port: 5432
   user: postgres
   password: postgres
   database: postgres
+
+admin:
+  email: admin@admin.com
+  password: admin
+
+aiohttp_session:
+  key: your_secret_key
