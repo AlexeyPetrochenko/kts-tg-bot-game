@@ -1,7 +1,7 @@
 """tables_for_game
 
 Revision ID: fdcec4df8bcd
-Revises: 
+Revises:
 Create Date: 2025-04-13 10:21:04.076590
 
 """
@@ -39,7 +39,7 @@ def upgrade() -> None:
     op.create_table('games',
     sa.Column('game_id', sa.Integer(), nullable=False),
     sa.Column('chat_id', sa.Integer(), nullable=False),
-    sa.Column('state', sa.Enum('WAITING_FOR_GAME', 'WAITING_FOR_PLAYERS', 'START_GAME', 'PLAYER_TURN', 'PLAYER_TURN_LETTER', 'PLAYER_TURN_WORD', 'NEXT_PLAYER_TURN', 'GAME_FINISHED', name='gamestate'), nullable=False),
+    sa.Column('state', sa.Enum('WAITING_FOR_PLAYERS', 'PLAYER_TURN', 'NEXT_PLAYER_TURN', 'WAITING_FOR_LETTER', 'WAITING_FOR_WORD', 'CHECK_WINNER', 'GAME_FINISHED', name='gamestate'), nullable=False),
     sa.Column('question_id', sa.Integer(), nullable=False),
     sa.Column('revealed_letter', sa.String(), nullable=False),
     sa.ForeignKeyConstraint(['question_id'], ['questions.question_id'], ),
