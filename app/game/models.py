@@ -10,6 +10,8 @@ class GameState(enum.StrEnum):
     WAITING_FOR_PLAYERS = "waiting_for_players"
     PLAYER_TURN = "player_turn"
     NEXT_PLAYER_TURN = "next_player_turn"
+    WAITING_FOR_LETTER = "waiting_for_letter"
+    WAITING_FOR_WORD = "waiting_for_word"
     CHECK_WINNER = "check_winner"
     GAME_FINISHED = "game_finished"
 

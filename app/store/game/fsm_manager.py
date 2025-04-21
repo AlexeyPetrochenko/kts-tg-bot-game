@@ -14,8 +14,8 @@ class FsmManager:
     def get_fsm(self, chat_id: int) -> Fsm | None:
         return self.fsm_storage.get(chat_id)
 
-    def set_fsm(self, chat_id: int) -> Fsm:
-        fsm = setup_fsm(self.store, chat_id)
+    def set_fsm(self, chat_id: int, game_id: int) -> Fsm:
+        fsm = setup_fsm(self.store, chat_id, game_id)
         self.fsm_storage[chat_id] = fsm
         return fsm
 
