@@ -49,7 +49,6 @@ class TGApiAccessor:
         params = {"chat_id": chat_id, "text": text}
         await self._request_api("sendMessage", params)
 
-    # TODO: Возможно создать один метод для кнопок и dict с наполнением
     async def send_button_start(self, chat_id: int) -> None:
         reply_markup = {
             "inline_keyboard": [
@@ -71,7 +70,7 @@ class TGApiAccessor:
         }
         params = {
             "chat_id": chat_id,
-            "text": "Присоединиться к игре?",
+            "text": "Присоединиться к игре?\n60 секунд на сбор игроков",
             "reply_markup": reply_markup,
         }
         await self._request_api("sendMessage", params)
@@ -86,6 +85,7 @@ class TGApiAccessor:
         bonus_points: int,
     ) -> None:
         text = f"""
+            У вас 30 секунд на выбор действия:
             Ходит: {username}
             Ваши очки: {user_points}
             Вопрос: {question}

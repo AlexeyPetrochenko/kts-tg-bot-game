@@ -34,7 +34,6 @@ class BaseHandler(ABC):
         await self.store.tg_api.answer_callback(callback.callback_id, text)
 
 
-# TODO: Много дублирования кода как лучше от него избавится даже не знаю
 class StartHandler(BaseHandler):
     async def handle(self, callback: CallbackQuery) -> None:
         # TODO: Проверяем нет ли запущенной игры
@@ -79,7 +78,7 @@ class JoinHandler(BaseHandler):
             await self.answer_callback(callback, "Игра на другом этапе")
             return
 
-        # TODO: Добавляем игрока к игре
+        # TODO: Добавляем пользователя в таблицу User если его еще там нет
         user = await self.store.game_accessor.get_user_by_tg_id(
             callback.from_id
         )
@@ -87,6 +86,7 @@ class JoinHandler(BaseHandler):
             user = await self.store.game_accessor.create_user(
                 callback.from_id, callback.from_username
             )
+        # TODO: Назначаем ему порядковый номер для хода и добавляем в игру
         player_count = await self.store.game_accessor.get_count_participant(
             game_id=fsm.game_id
         )

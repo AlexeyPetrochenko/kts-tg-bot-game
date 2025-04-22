@@ -43,10 +43,26 @@ class BaseFsmState(ABC):
 class PlayersWaitingFsmState(BaseFsmState):
     async def enter_(self) -> None:
         logger.info("PlayersWaitingFsmState [ENTER]")
+
+        # Запуск таймера на ожидание игроков
         await self.fsm.store.tg_api.send_button_join(self.fsm.chat_id)
+        self.fsm.timer_manager.start(60, self._on_timeout)
+
+    async def _on_timeout(self) -> None:
+        count = await self.fsm.store.game_accessor.get_count_participant(
+            self.fsm.game_id
+        )
+        if count < MIN_NUMBER_OF_PARTICIPANTS:
+            text = f"""
+            Недостаточно игроков ({count}/{MIN_NUMBER_OF_PARTICIPANTS}).
+            Игра завершена.
+            """
+            await self.fsm.store.tg_api.send_message(self.fsm.chat_id, text)
+            await self.fsm.set_current_state(GameState.GAME_FINISHED)
 
     async def exit_(self) -> None:
         logger.info("PlayersWaitingFsmState [EXIT]")
+        self.fsm.timer_manager.cancel()
 
     async def update_(self, context: Message | None = None) -> None:
         logger.info("PlayersWaitingFsmState [UPDATE]")
@@ -55,6 +71,11 @@ class PlayersWaitingFsmState(BaseFsmState):
         )
         if count >= MIN_NUMBER_OF_PARTICIPANTS:
             await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
+        else:
+            await self.fsm.store.tg_api.send_message(
+                self.fsm.chat_id,
+                f"Подключились ({count}/{MIN_NUMBER_OF_PARTICIPANTS}) игроков",
+            )
 
 
 class NextPlayerTurnFsmState(BaseFsmState):
@@ -123,6 +144,7 @@ class NextPlayerTurnFsmState(BaseFsmState):
 class PlayerTurnFsmState(BaseFsmState):
     async def enter_(self) -> None:
         logger.info("PlayerTurnFsmState [ENTER]")
+
         active_player = await self.fsm.store.game_accessor.get_active_player(
             self.fsm.game_id
         )
@@ -133,7 +155,11 @@ class PlayerTurnFsmState(BaseFsmState):
             self.fsm.game_id
         )
         word = self.mask_word(game.question.answer, game.revealed_letters)
-        self.fsm.bonus_points = self._spin_wheel()
+        bonus_points = self._spin_wheel()
+        await self.fsm.store.game_accessor.update_game_bonus_points(
+            game, bonus_points
+        )
+        self.fsm.bonus_points = bonus_points
         await self.fsm.store.tg_api.send_turn_buttons(
             self.fsm.chat_id,
             active_player.user.username,  # type: ignore[attr-defined]
@@ -143,8 +169,17 @@ class PlayerTurnFsmState(BaseFsmState):
             self.fsm.bonus_points,
         )
 
+        # Запуск таймера на ход
+        self.fsm.timer_manager.start(30, self._on_timeout)
+
+    async def _on_timeout(self) -> None:
+        text = "Вы не успели, переход хода"
+        await self.fsm.store.tg_api.send_message(self.fsm.chat_id, text)
+        await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
+
     async def exit_(self) -> None:
         logger.info("PlayerTurnFsmState [EXIT]")
+        self.fsm.timer_manager.cancel()
 
     async def update_(self, context: Message | None = None) -> None:
         logger.info("PlayerTurnFsmState [UPDATE]")
@@ -219,13 +254,24 @@ class FinishGameFsmState(BaseFsmState):
         winner = [p for p in players if p.state == GameParticipantState.WINNER]
         losers = [p for p in players if p.state != GameParticipantState.WINNER]
 
+        # TODO: Если не собралось нужное количество игроков
+        # TODO: или по каким то причинам нет победителя Проставляем статусы LEFT
+        try:
+            w = winner[0]
+        except IndexError:
+            await self.fsm.store.game_accessor.update_status_many_players(
+                [p for p in losers if p.state == GameParticipantState.WAITING],
+                GameParticipantState.LEFT,
+            )
+            self.fsm.store.fsm_manager.remove_fsm(self.fsm.chat_id)
+            return
+
         # TODO: Проставляем статусы LOSER проигравшим не покинувшим игру
         await self.fsm.store.game_accessor.update_status_many_players(
             [p for p in losers if p.state == GameParticipantState.WAITING],
             GameParticipantState.LOSER,
         )
 
-        w = winner[0]
         winner_text = f"🏆 Победитель: @{w.user.username} с {w.points} очками"
 
         losers_sorted = sorted(losers, key=lambda p: p.points, reverse=True)
@@ -252,11 +298,20 @@ class WaitingLetterFsmState(BaseFsmState):
     async def enter_(self) -> None:
         logger.info("WaitingLetterFsmState [ENTER]")
         await self.fsm.store.tg_api.send_message(
-            self.fsm.chat_id, f"@{self.fsm.current_player_username} Ждем букву!"
+            self.fsm.chat_id,
+            f"@{self.fsm.current_player_username} Ждем букву! 30 секунд!",
         )
+        # Запуск таймера на ход
+        self.fsm.timer_manager.start(30, self._on_timeout)
+
+    async def _on_timeout(self) -> None:
+        text = "Вы не успели, переход хода"
+        await self.fsm.store.tg_api.send_message(self.fsm.chat_id, text)
+        await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
 
     async def exit_(self) -> None:
         logger.info("WaitingLetterFsmState [EXIT]")
+        self.fsm.timer_manager.cancel()
 
     async def send_message(self, base_text: str, text: str) -> None:
         await self.fsm.store.tg_api.send_message(
@@ -302,9 +357,10 @@ class WaitingLetterFsmState(BaseFsmState):
             letter,
         )
         # TODO: Начисляем очки и снова ходим
+        count_letters = game.question.answer.upper().count(letter)
         await self.fsm.store.game_accessor.add_points_player(
             player,
-            self.fsm.bonus_points,
+            self.fsm.bonus_points * count_letters,
         )
         # TODO: Проверяем отгадано ли слово
         if self.is_word_guessed(game.question.answer, game.revealed_letters):
@@ -327,11 +383,20 @@ class WaitingLetterFsmState(BaseFsmState):
 class WaitingWordFsmState(BaseFsmState):
     async def enter_(self) -> None:
         await self.fsm.store.tg_api.send_message(
-            self.fsm.chat_id, f"@{self.fsm.current_player_username} Ждем слово!"
+            self.fsm.chat_id,
+            f"@{self.fsm.current_player_username} Ждем слово! 30 секунд!",
         )
+        # Запуск таймера на ход
+        self.fsm.timer_manager.start(30, self._on_timeout)
+
+    async def _on_timeout(self) -> None:
+        text = "Вы не успели, переход хода"
+        await self.fsm.store.tg_api.send_message(self.fsm.chat_id, text)
+        await self.fsm.set_current_state(GameState.NEXT_PLAYER_TURN)
 
     async def exit_(self) -> None:
-        pass
+        logger.info("WaitingWordFsmState [EXIT]")
+        self.fsm.timer_manager.cancel()
 
     async def update_(self, context: Message | None = None) -> None:
         logger.info("WaitingWordFsmState [UPDATE]")
