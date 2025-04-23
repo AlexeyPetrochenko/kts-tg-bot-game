@@ -1,11 +1,112 @@
-  services:
+services:
 
-    db:
-      image: postgres:17.0-alpine3.20
-      environment:
-        POSTGRES_DB: ${DB_NAME}
-        POSTGRES_USER: ${DB_USER}
-        POSTGRES_PASSWORD: ${DB_PASS}
-      ports:
-        - "5432:5432"
+  db:
+    image: postgres:17.0-alpine3.20
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    ports:
+      - "5432:5432"
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DB_USER}", "-d", "${DB_NAME}"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+    networks:
+      - app-network
 
+  migrator:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: alembic upgrade head
+
+  broker:
+    image: rabbitmq:4.0.5-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBIT_DEFAULT_USER: ${RMQ_USER}
+      RABBIT_DEFAULT_PASS: ${RMQ_PASS}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+    networks:
+      - app-network
+
+
+  bot1:
+    build: .
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "python3 -m app.bot.main --queue-id=0"
+
+  bot2:
+    build: .
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "python3 -m app.bot.main --queue-id=1"
+
+  poller:
+    build: .
+    depends_on:
+      broker:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "python3 -m app.poller.main"
+
+  api:
+    build: .
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: on-failure
+    ports:
+    - "8080:8080"
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "python3 -m app.web.main"
+
+
+networks:
+  app-network:

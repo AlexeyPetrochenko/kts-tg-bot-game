@@ -10,7 +10,7 @@ from app.bot.handlers import (
     StartHandler,
     TextMessageHandler,
 )
-from app.bot.schemes import CallbackQuery, Message, Update
+from app.poller.schemes import CallbackQuery, Message, Update
 
 if typing.TYPE_CHECKING:
     from app.store.store import Store

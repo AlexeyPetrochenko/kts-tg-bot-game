@@ -1,7 +1,6 @@
 import logging
 import typing
 
-from app.bot.schemes import Message
 from app.game.models import GameModel, GameState
 from app.game.states import (
     BaseFsmState,
@@ -13,6 +12,8 @@ from app.game.states import (
     WaitingLetterFsmState,
     WaitingWordFsmState,
 )
+from app.game.timer import FsmTimerManager
+from app.poller.schemes import Message
 
 if typing.TYPE_CHECKING:
     from app.store.store import Store
@@ -21,11 +22,18 @@ logger = logging.getLogger(__name__)
 
 
 class Fsm:
-    def __init__(self, store: "Store", chat_id: int, game_id: int) -> None:
+    def __init__(
+        self,
+        store: "Store",
+        chat_id: int,
+        game_id: int,
+        timer_manager: FsmTimerManager,
+    ) -> None:
         self.store = store
         self.chat_id = chat_id
         self.game_id = game_id
         self.states: dict[GameState, BaseFsmState] = {}
+        self.timer_manager = timer_manager
         self.current_state: BaseFsmState | None = None
         self.current_player_tg_id: int | None = None
         self.current_player_username: str | None = None
@@ -33,8 +41,10 @@ class Fsm:
 
     async def restore_current_state(self, game: GameModel) -> None:
         self.current_state = self.states.get(game.state)
-        self.current_player_tg_id = game.current_player.user.tg_user_id
-        self.current_player_username = game.current_player.user.username
+        self.bonus_points = game.bonus_points
+        if game.state != GameState.WAITING_FOR_PLAYERS:
+            self.current_player_tg_id = game.current_player.user.tg_user_id
+            self.current_player_username = game.current_player.user.username
         await self.current_state.enter_()
 
     async def set_current_state(self, state: GameState) -> None:
@@ -58,7 +68,7 @@ class Fsm:
 
 
 def setup_fsm(store: "Store", chat_id: int, game_id: int) -> Fsm:
-    fsm = Fsm(store, chat_id, game_id)
+    fsm = Fsm(store, chat_id, game_id, FsmTimerManager())
     fsm.add_state(GameState.WAITING_FOR_PLAYERS, PlayersWaitingFsmState)
     fsm.add_state(GameState.NEXT_PLAYER_TURN, NextPlayerTurnFsmState)
     fsm.add_state(GameState.PLAYER_TURN, PlayerTurnFsmState)
