@@ -37,9 +37,9 @@ class GameAccessor:
 
     async def connect(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         try:
-            await self.create_question("Тестовый вопрос", " Ответ")
+            await self.create_question("Тестовый вопрос", "Ответ")
             logger.info("First question created successfully")
-        except IntegrityError:
+        except QuestionCreateError:
             logger.info("The first question has already been created")
 
     async def create_game(
@@ -69,6 +69,14 @@ class GameAccessor:
             except SQLAlchemyError as e:
                 logger.error(e)
                 raise UpdateGameStateError(game_id) from e
+
+    async def update_game_bonus_points(
+        self, game: GameModel, bonus_points: int
+    ) -> None:
+        async with self.store.database.session_maker() as session:
+            game.bonus_points = bonus_points
+            session.add(game)
+            await session.commit()
 
     async def get_running_game(self, chat_id: int) -> GameModel | None:
         async with self.store.database.session_maker() as session:
