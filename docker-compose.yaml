@@ -19,24 +19,39 @@ services:
     networks:
       - app-network
 
-  app:
+  migrator:
     build: .
-    ports:
-      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
-    restart: on-failure
     networks:
       - app-network
     volumes:
       - ./local/etc/config.yaml:/app/etc/config.yaml:ro
-    command: >
-      sh -c "alembic upgrade head && python3 -m app.web.main"
+    command: alembic upgrade head
+
+  broker:
+    image: rabbitmq:4.0.5-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBIT_DEFAULT_USER: ${RMQ_USER}
+      RABBIT_DEFAULT_PASS: ${RMQ_PASS}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+    networks:
+      - app-network
+
 
   bot:
     build: .
     depends_on:
+      migrator:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
     restart: on-failure
@@ -45,7 +60,35 @@ services:
     volumes:
       - ./local/etc/config.yaml:/app/etc/config.yaml:ro
     command: >
-      sh -c "python3 -m app.bot.main"
+      sh -c "alembic upgrade head && python3 -m app.bot.main"
+
+  poller:
+    build: .
+    depends_on:
+      broker:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "python3 -m app.poller.main"
+
+  api:
+    build: .
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "python3 -m app.web.main"
 
 
 networks:

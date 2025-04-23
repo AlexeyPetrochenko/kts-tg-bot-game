@@ -39,7 +39,7 @@ class GameAccessor:
         try:
             await self.create_question("Тестовый вопрос", "Ответ")
             logger.info("First question created successfully")
-        except SQLAlchemyError:
+        except QuestionCreateError:
             logger.info("The first question has already been created")
 
     async def create_game(
