@@ -7,5 +7,5 @@ if typing.TYPE_CHECKING:
 
 
 def setup_routes(app: "Application") -> None:
-    app.router.add_view("/game.add_question", QuestionAddView)
-    app.router.add_view("/game.delete_question", QuestionDeleteView)
+    app.router.add_view("/game/add_question", QuestionAddView)
+    app.router.add_view("/game/delete_question", QuestionDeleteView)

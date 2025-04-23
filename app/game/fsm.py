@@ -1,7 +1,6 @@
 import logging
 import typing
 
-from app.bot.schemes import Message
 from app.game.models import GameModel, GameState
 from app.game.states import (
     BaseFsmState,
@@ -14,6 +13,7 @@ from app.game.states import (
     WaitingWordFsmState,
 )
 from app.game.timer import FsmTimerManager
+from app.poller.schemes import Message
 
 if typing.TYPE_CHECKING:
     from app.store.store import Store

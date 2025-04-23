@@ -14,3 +14,16 @@ admin:
 
 aiohttp_session:
   key: your_secret_key
+
+broker:
+    host: broker
+    port: 5672
+    user: guest
+    password: guest
+    prefetch_count: 1
+    number_queues: 2
+
+game:
+  wheel_sectors: [0, 100, 250, 350, 400, 450, 500, 600, 750, 1000]
+  sector_weights: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  min_number_of_participants: 3
