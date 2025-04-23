@@ -39,6 +39,7 @@ class GameModel(BaseModel):
     current_player_id: Mapped[int | None] = mapped_column(
         ForeignKey("game_participants.participant_id", ondelete="SET NULL")
     )
+    bonus_points: Mapped[int] = mapped_column(default=0)
 
     current_player: Mapped["GameParticipantModel"] = relationship(
         back_populates="current_game",

@@ -4,11 +4,14 @@ from marshmallow.validate import OneOf
 from app.game.models import GameParticipantState, GameState
 
 
-# TODO: Пока нигде не задействовал
 class QuestionSchema(Schema):
     question_id = fields.Int(dump_only=True)
     question = fields.Str(required=True)
     answer = fields.Str(required=True)
+
+
+class QuestionIdSchema(Schema):
+    question_id = fields.Int()
 
 
 class GameSchema(Schema):
