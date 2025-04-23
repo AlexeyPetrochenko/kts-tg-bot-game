@@ -22,7 +22,9 @@ class RabbitMQClient:
             self.store.config.broker.RABBIT_MQ_URL
         )
         self.channel = await self.connection.channel()
-        await self.channel.set_qos(prefetch_count=1)
+        await self.channel.set_qos(
+            prefetch_count=self.store.config.broker.prefetch_count
+        )
         logger.info("Connected to broker")
 
     async def disconnect(self, *args: typing.Any, **kwargs: typing.Any) -> None:

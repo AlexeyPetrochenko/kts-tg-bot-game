@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 class Bot:
-    def __init__(self, store: Store) -> None:
+    def __init__(self, store: Store, queue_id: int) -> None:
         self.store = store
+        self.queue_id = queue_id
 
     async def run_bot(self) -> None:
         await self.store.broker.connect()
@@ -21,17 +22,19 @@ class Bot:
         await self.store.database.connect()
         await self.store.game_accessor.connect()
         await self.consume_updates()
-        logger.info("Bot started successfully")
+        logger.info("Bot queue_id=%s started successfully", self.queue_id)
 
     async def stop_bot(self) -> None:
         await self.store.database.disconnect()
         await self.store.broker.disconnect()
         await self.store.tg_api.disconnect()
-        logger.info("Bot stopped successfully")
+        logger.info("Bot queue_id=%s stopped successfully", self.queue_id)
 
     async def consume_updates(self) -> None:
         channel = self.store.broker.channel
-        queue = await channel.declare_queue("updates_queue", durable=True)
+        queue = await channel.declare_queue(
+            f"update_queue_{self.queue_id}", durable=True
+        )
         await queue.consume(callback=self.process_handle_updates)
         await asyncio.Future()
 
@@ -43,6 +46,6 @@ class Bot:
         await message.ack()
 
 
-def setup_bot(config: Config) -> Bot:
+def setup_bot(config: Config, queue_id: int) -> Bot:
     store = Store(config)
-    return Bot(store)
+    return Bot(store, queue_id)

@@ -70,7 +70,7 @@ class TGApiAccessor:
         }
         params = {
             "chat_id": chat_id,
-            "text": "Присоединиться к игре?\n60 секунд на сбор игроков",
+            "text": "Присоединиться к игре?",
             "reply_markup": reply_markup,
         }
         await self._request_api("sendMessage", params)
@@ -85,7 +85,6 @@ class TGApiAccessor:
         bonus_points: int,
     ) -> None:
         text = f"""
-            У вас 30 секунд на выбор действия:
             Ходит: {username}
             Ваши очки: {user_points}
             Вопрос: {question}

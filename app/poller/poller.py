@@ -1,9 +1,11 @@
 import asyncio
+import hashlib
 import logging
 from asyncio import Task
+from typing import Any
 
 import aio_pika
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from app.poller.schemes import CallbackQuery, Message, Update
 from app.store import Store
@@ -24,6 +26,7 @@ class Poller:
         self.is_running = True
         await self.store.tg_api.connect()
         await self.store.broker.connect()
+        await self._initialize_queues()
         self.poll_task = asyncio.create_task(self.poll())
         logger.info("Polling started")
 
@@ -34,6 +37,13 @@ class Poller:
         await self.store.broker.disconnect()
         await self.store.tg_api.disconnect()
         logger.info("Poller Stopped")
+
+    async def _initialize_queues(self) -> None:
+        channel = self.store.broker.channel
+        for i in range(self.store.config.broker.number_queues):
+            queue_name = f"update_queue_{i}"
+            await channel.declare_queue(queue_name, durable=True)
+            logger.info("Queue %s declared", queue_name)
 
     async def poll(self) -> None:
         while self.is_running:
@@ -56,20 +66,31 @@ class Poller:
                 logger.error("poller stopped with exception: %s", e)
                 await asyncio.sleep(5)
 
-    def create_amqp_message(self, data: BaseModel) -> aio_pika.Message:
+    def create_amqp_message(self, data: Update) -> aio_pika.Message:
         return aio_pika.Message(
             body=data.model_dump_json().encode(),
             content_type="application/json",
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-            headers={"message_type": "telegram_update", "encoding": "utf-8"},
+            headers={
+                "message_type": "telegram_update",
+                "encoding": "utf-8",
+                "chat_id": str(data.body.chat_id),
+            },
         )
 
     async def add_to_queue(self, message: aio_pika.Message) -> None:
-        channel = self.store.broker.channel
-        queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
-            "updates_queue", durable=True
+        chat_id = message.headers.get("chat_id")
+        queue_name = self.calculate_queue_name(
+            chat_id, self.store.config.broker.number_queues
         )
-        await channel.default_exchange.publish(message, routing_key=queue.name)
+        channel = self.store.broker.channel
+        await channel.default_exchange.publish(message, routing_key=queue_name)
+
+    @staticmethod
+    def calculate_queue_name(chat_id: Any, num_queues: int) -> str:
+        hashed_chat_id = hashlib.sha256(str(chat_id).encode()).hexdigest()
+        queue_id = int(hashed_chat_id, 16) % num_queues
+        return f"update_queue_{queue_id}"
 
     def _parse_update(self, update: dict) -> Update | int:
         try:
@@ -88,7 +109,7 @@ class Poller:
                         ],
                         from_id=update["callback_query"]["from"]["id"],
                         from_username=update["callback_query"]["from"][
-                            "username"
+                            "first_name"
                         ],
                     ),
                 )
@@ -98,7 +119,7 @@ class Poller:
                 date=update["message"]["date"],
                 body=Message(
                     chat_id=update["message"]["chat"]["id"],
-                    text=update["message"]["text"],
+                    text=update["message"].get("text", ""),
                     message_id=update["message"]["message_id"],
                     from_id=update["message"]["from"]["id"],
                     from_username=update["message"]["from"]["first_name"],

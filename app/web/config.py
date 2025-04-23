@@ -33,6 +33,8 @@ class RabbitMQConfig:
     port: int = 5672
     user: str = "guest"
     password: str = "guest"
+    prefetch_count: int = 1
+    number_queues: int = 2
 
     @property
     def RABBIT_MQ_URL(self) -> str:  # noqa: N802
@@ -53,12 +55,20 @@ class DatabaseConfig:
 
 
 @dataclass
+class GameConfig:
+    wheel_sectors: tuple[int, ...]
+    sector_weights: tuple[int, ...]
+    min_number_of_participants: int = 2
+
+
+@dataclass
 class Config:
     admin: AdminConfig | None = None
     bot: BotConfig | None = None
     database: DatabaseConfig | None = None
     aiohttp_session: SessionConfig | None = None
     broker: RabbitMQConfig | None = None
+    game: GameConfig | None = None
 
 
 ConfigSchema = class_schema(Config)()
