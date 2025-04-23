@@ -159,10 +159,6 @@ class SayLetterHandler(BaseHandler):
             return
 
         await self.answer_callback(callback, "Введи одну букву")
-        # await self.store.tg_api.send_message(
-        #     callback.chat_id, f"@{callback.from_username} Ждем букву!"
-        # )
-        # Делаем переход в состояние WAITING_FOR_LETTER
         await fsm.set_current_state(GameState.WAITING_FOR_LETTER)
 
 
@@ -184,10 +180,6 @@ class SayWordHandler(BaseHandler):
             await self.answer_callback(callback, "Дождитесь своего хода")
             return
         await self.answer_callback(callback, "Введи слово")
-        # await self.store.tg_api.send_message(
-        #     callback.chat_id, f"@{callback.from_username} Ждем слово!"
-        # )
-        # Делаем переход в состояние WAITING_FOR_WORD
         await fsm.set_current_state(GameState.WAITING_FOR_WORD)
 
 
@@ -196,18 +188,31 @@ class TextMessageHandler:
         self.store = store
 
     async def handle(self, message: Message) -> None:
+        logger.info(
+            "%s: User %s, send message: %s, in chat_id: %s",
+            self.__class__.__name__,
+            message.from_username,
+            message.text,
+            message.chat_id,
+        )
         # TODO: Проверяем есть ли запущенная игра
         fsm = self.store.fsm_manager.get_fsm(message.chat_id)
         if fsm is None:
             await self.store.tg_api.send_button_start(message.chat_id)
             return
 
-        # Проверяем букву
-        if fsm.current_state.enum_state == GameState.WAITING_FOR_LETTER:
+        # Проверяем букву и что ход текущего игрока
+        if (
+            fsm.current_state.enum_state == GameState.WAITING_FOR_LETTER
+            and message.from_id == fsm.current_player_tg_id
+        ):
             await fsm.update_current_state(message)
             return
 
-        # Проверяем слово
-        if fsm.current_state.enum_state == GameState.WAITING_FOR_WORD:
+        # Проверяем слово и что ход текущего игрока
+        if (
+            fsm.current_state.enum_state == GameState.WAITING_FOR_WORD
+            and message.from_id == fsm.current_player_tg_id
+        ):
             await fsm.update_current_state(message)
             return

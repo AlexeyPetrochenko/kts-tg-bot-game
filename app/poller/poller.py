@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class Poller:
-    def __init__(self, store: "Store", number_queues: int) -> None:
+    def __init__(self, store: "Store") -> None:
         self.store = store
-        self.number_queues = number_queues
         self.is_running = False
         self.poll_task: Task | None = None
         self.offset: int | None = None
@@ -27,6 +26,7 @@ class Poller:
         self.is_running = True
         await self.store.tg_api.connect()
         await self.store.broker.connect()
+        await self._initialize_queues()
         self.poll_task = asyncio.create_task(self.poll())
         logger.info("Polling started")
 
@@ -37,6 +37,13 @@ class Poller:
         await self.store.broker.disconnect()
         await self.store.tg_api.disconnect()
         logger.info("Poller Stopped")
+
+    async def _initialize_queues(self) -> None:
+        channel = self.store.broker.channel
+        for i in range(self.store.config.broker.number_queues):
+            queue_name = f"update_queue_{i}"
+            await channel.declare_queue(queue_name, durable=True)
+            logger.info("Queue %s declared", queue_name)
 
     async def poll(self) -> None:
         while self.is_running:
@@ -73,11 +80,11 @@ class Poller:
 
     async def add_to_queue(self, message: aio_pika.Message) -> None:
         chat_id = message.headers.get("chat_id")
-        queue_name = self.calculate_queue_name(chat_id, self.number_queues)
-
+        queue_name = self.calculate_queue_name(
+            chat_id, self.store.config.broker.number_queues
+        )
         channel = self.store.broker.channel
-        queue = await channel.declare_queue(queue_name, durable=True)
-        await channel.default_exchange.publish(message, routing_key=queue.name)
+        await channel.default_exchange.publish(message, routing_key=queue_name)
 
     @staticmethod
     def calculate_queue_name(chat_id: Any, num_queues: int) -> str:
@@ -102,7 +109,7 @@ class Poller:
                         ],
                         from_id=update["callback_query"]["from"]["id"],
                         from_username=update["callback_query"]["from"][
-                            "username"
+                            "first_name"
                         ],
                     ),
                 )
@@ -112,7 +119,7 @@ class Poller:
                 date=update["message"]["date"],
                 body=Message(
                     chat_id=update["message"]["chat"]["id"],
-                    text=update["message"]["text"],
+                    text=update["message"].get("text", ""),
                     message_id=update["message"]["message_id"],
                     from_id=update["message"]["from"]["id"],
                     from_username=update["message"]["from"]["first_name"],
@@ -126,6 +133,6 @@ class Poller:
             return update.get("update_id", -1)
 
 
-def setup_poller(config: Config, number_queues: int) -> Poller:
+def setup_poller(config: Config) -> Poller:
     store = Store(config)
-    return Poller(store, number_queues)
+    return Poller(store)
