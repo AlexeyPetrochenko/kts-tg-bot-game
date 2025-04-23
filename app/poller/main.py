@@ -7,11 +7,12 @@ from app.web.logger import setup_logging
 
 setup_logging()
 logger = logging.getLogger(__name__)
+NUMBER_OF_QUEUES = 2
 
 
 async def main() -> None:
     config = load_config(get_config_path())
-    poller = setup_poller(config)
+    poller = setup_poller(config, NUMBER_OF_QUEUES)
     try:
         await poller.start()
         await asyncio.Event().wait()

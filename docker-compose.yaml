@@ -47,7 +47,7 @@ services:
       - app-network
 
 
-  bot:
+  bot1:
     build: .
     depends_on:
       migrator:
@@ -60,7 +60,22 @@ services:
     volumes:
       - ./local/etc/config.yaml:/app/etc/config.yaml:ro
     command: >
-      sh -c "alembic upgrade head && python3 -m app.bot.main"
+      sh -c "python3 -m app.bot.main --queue-id=0"
+
+  bot2:
+    build: .
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - app-network
+    volumes:
+      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+    command: >
+      sh -c "python3 -m app.bot.main --queue-id=1"
 
   poller:
     build: .
@@ -83,6 +98,8 @@ services:
       db:
         condition: service_healthy
     restart: on-failure
+    ports:
+    - "8080:8080"
     networks:
       - app-network
     volumes:

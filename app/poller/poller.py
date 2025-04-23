@@ -1,9 +1,11 @@
 import asyncio
+import hashlib
 import logging
 from asyncio import Task
+from typing import Any
 
 import aio_pika
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from app.poller.schemes import CallbackQuery, Message, Update
 from app.store import Store
@@ -13,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class Poller:
-    def __init__(self, store: "Store") -> None:
+    def __init__(self, store: "Store", number_queues: int) -> None:
         self.store = store
+        self.number_queues = number_queues
         self.is_running = False
         self.poll_task: Task | None = None
         self.offset: int | None = None
@@ -56,20 +59,31 @@ class Poller:
                 logger.error("poller stopped with exception: %s", e)
                 await asyncio.sleep(5)
 
-    def create_amqp_message(self, data: BaseModel) -> aio_pika.Message:
+    def create_amqp_message(self, data: Update) -> aio_pika.Message:
         return aio_pika.Message(
             body=data.model_dump_json().encode(),
             content_type="application/json",
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-            headers={"message_type": "telegram_update", "encoding": "utf-8"},
+            headers={
+                "message_type": "telegram_update",
+                "encoding": "utf-8",
+                "chat_id": str(data.body.chat_id),
+            },
         )
 
     async def add_to_queue(self, message: aio_pika.Message) -> None:
+        chat_id = message.headers.get("chat_id")
+        queue_name = self.calculate_queue_name(chat_id, self.number_queues)
+
         channel = self.store.broker.channel
-        queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
-            "updates_queue", durable=True
-        )
+        queue = await channel.declare_queue(queue_name, durable=True)
         await channel.default_exchange.publish(message, routing_key=queue.name)
+
+    @staticmethod
+    def calculate_queue_name(chat_id: Any, num_queues: int) -> str:
+        hashed_chat_id = hashlib.sha256(str(chat_id).encode()).hexdigest()
+        queue_id = int(hashed_chat_id, 16) % num_queues
+        return f"update_queue_{queue_id}"
 
     def _parse_update(self, update: dict) -> Update | int:
         try:
@@ -112,6 +126,6 @@ class Poller:
             return update.get("update_id", -1)
 
 
-def setup_poller(config: Config) -> Poller:
+def setup_poller(config: Config, number_queues: int) -> Poller:
     store = Store(config)
-    return Poller(store)
+    return Poller(store, number_queues)
