@@ -9,6 +9,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aio-pika>=9.5.5",
     "aiohttp>=3.11.16",
     "aiohttp-apispec>=2.2.3",
     "aiohttp-session[secure]>=2.12.1",
@@ -17,6 +18,7 @@ dependencies = [
     "marshmallow>=3.26.1",
     "marshmallow-dataclass>=8.7.1",
     "passlib>=1.7.4",
+    "pydantic>=2.11.3",
     "pyyaml>=6.0.2",
     "setuptools>=79.0.0",
     "sqlalchemy>=2.0.40",

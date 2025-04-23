@@ -1,8 +1,8 @@
 import logging
 from abc import ABC, abstractmethod
 
-from app.bot.schemes import CallbackQuery, Message
 from app.game.models import GameParticipantState, GameState
+from app.poller.schemes import CallbackQuery, Message
 from app.store.store import Store
 from app.web.exceptions import ParticipantRegistrationError
 

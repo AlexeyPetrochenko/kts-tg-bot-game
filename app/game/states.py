@@ -4,7 +4,6 @@ import typing
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from app.bot.schemes import Message
 from app.game.config import (
     MIN_NUMBER_OF_PARTICIPANTS,
     SECTOR_WEIGHTS,
@@ -15,6 +14,7 @@ from app.game.models import (
     GameParticipantState,
     GameState,
 )
+from app.poller.schemes import Message
 
 if typing.TYPE_CHECKING:
     from app.game.fsm import Fsm

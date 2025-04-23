@@ -22,8 +22,11 @@ class AdminAccessor:
     async def connect(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         email = self.store.config.admin.email
         password = hash_password(self.store.config.admin.password)
-        await self.create_admin(email, password)
-        logger.info("Base Admin created successfully")
+        try:
+            await self.create_admin(email, password)
+            logger.info("Base Admin created successfully")
+        except AdminCreateError:
+            logger.info("Base Admin  has already been created")
 
     async def disconnect(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         await self.delete_admin_by_email(self.store.config.admin.email)

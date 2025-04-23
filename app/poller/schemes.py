@@ -1,8 +1,7 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class Message:
+class Message(BaseModel):
     chat_id: int
     text: str
     message_id: int
@@ -10,8 +9,7 @@ class Message:
     from_username: str
 
 
-@dataclass
-class CallbackQuery:
+class CallbackQuery(BaseModel):
     callback_id: str
     chat_id: int
     command: str
@@ -20,8 +18,7 @@ class CallbackQuery:
     from_username: str
 
 
-@dataclass
-class Update:
+class Update(BaseModel):
     update_id: int
     date: int
     body: Message | CallbackQuery

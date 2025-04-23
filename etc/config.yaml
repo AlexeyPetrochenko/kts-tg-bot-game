@@ -14,3 +14,9 @@ admin:
 
 aiohttp_session:
   key: your_secret_key
+
+broker:
+    host: broker
+    port: 5672
+    user: guest
+    password: guest

@@ -28,6 +28,18 @@ class SessionConfig:
 
 
 @dataclass
+class RabbitMQConfig:
+    host: str = "localhost"
+    port: int = 5672
+    user: str = "guest"
+    password: str = "guest"
+
+    @property
+    def RABBIT_MQ_URL(self) -> str:  # noqa: N802
+        return f'pyamqp://{self.user}:{self.password}@{self.host}:{self.port}/'
+
+
+@dataclass
 class DatabaseConfig:
     host: str = "localhost"
     port: int = 5432
@@ -46,6 +58,7 @@ class Config:
     bot: BotConfig | None = None
     database: DatabaseConfig | None = None
     aiohttp_session: SessionConfig | None = None
+    broker: RabbitMQConfig | None = None
 
 
 ConfigSchema = class_schema(Config)()
