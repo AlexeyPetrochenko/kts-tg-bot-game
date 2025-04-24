@@ -341,7 +341,7 @@ class WaitingLetterFsmState(BaseFsmState):
             self.fsm.game_id
         )
         player = game.current_player
-        base_text = f"@{player.user.username} назвал букву: {letter}"
+        base_text = f"@{player.user.username} назвал(а) букву: {letter}"
 
         # TODO: Неверный формат
         if len(letter) != 1 or not letter.isalpha():
@@ -426,7 +426,7 @@ class WaitingWordFsmState(BaseFsmState):
         if word == game.question.answer.upper():
             await self.fsm.store.tg_api.send_message(
                 self.fsm.chat_id,
-                f"@{player.user.username} назвал слово: {word} и это верно",
+                f"@{player.user.username} назвал(а) слово: {word} и это верно",
             )
             # TODO: Начисляем очки и меняем статус
             await self.fsm.store.game_accessor.add_points_player(
@@ -443,7 +443,7 @@ class WaitingWordFsmState(BaseFsmState):
         # TODO: Слово названо неверно
         await self.fsm.store.tg_api.send_message(
             self.fsm.chat_id,
-            f"@{player.user.username} назвал слово: {word} и это неверно",
+            f"@{player.user.username} назвал(а) слово: {word} и это неверно",
         )
         await self.fsm.store.tg_api.send_message(
             self.fsm.chat_id,

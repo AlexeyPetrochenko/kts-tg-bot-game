@@ -27,7 +27,7 @@ services:
     networks:
       - app-network
     volumes:
-      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+      - ./etc/config.yaml:/app/etc/config.yaml:ro
     command: alembic upgrade head
 
   broker:
@@ -48,7 +48,7 @@ services:
 
 
   bot1:
-    build: .
+    image: ghcr.io/alexeypetrochenko/kts-tg-bot-game:${IMAGE_TAG}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -58,12 +58,12 @@ services:
     networks:
       - app-network
     volumes:
-      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+      - ./etc/config.yaml:/app/etc/config.yaml:ro
     command: >
       sh -c "python3 -m app.bot.main --queue-id=0"
 
   bot2:
-    build: .
+    image: ghcr.io/alexeypetrochenko/kts-tg-bot-game:${IMAGE_TAG}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -73,12 +73,12 @@ services:
     networks:
       - app-network
     volumes:
-      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+      - ./etc/config.yaml:/app/etc/config.yaml:ro
     command: >
       sh -c "python3 -m app.bot.main --queue-id=1"
 
   poller:
-    build: .
+    image: ghcr.io/alexeypetrochenko/kts-tg-bot-game:${IMAGE_TAG}
     depends_on:
       broker:
         condition: service_healthy
@@ -86,12 +86,12 @@ services:
     networks:
       - app-network
     volumes:
-      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+      - ./etc/config.yaml:/app/etc/config.yaml:ro
     command: >
       sh -c "python3 -m app.poller.main"
 
   api:
-    build: .
+    image: ghcr.io/alexeypetrochenko/kts-tg-bot-game:${IMAGE_TAG}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -103,7 +103,7 @@ services:
     networks:
       - app-network
     volumes:
-      - ./local/etc/config.yaml:/app/etc/config.yaml:ro
+      - ./etc/config.yaml:/app/etc/config.yaml:ro
     command: >
       sh -c "python3 -m app.web.main"
 
