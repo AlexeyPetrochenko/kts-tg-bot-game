@@ -20,7 +20,7 @@ services:
       - app-network
 
   migrator:
-    build: .
+    image: ghcr.io/alexeypetrochenko/kts-tg-bot-game:${IMAGE_TAG}
     depends_on:
       db:
         condition: service_healthy
