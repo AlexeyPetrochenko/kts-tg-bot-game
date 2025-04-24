@@ -86,10 +86,10 @@ jobs:
       - name: connect and pull
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
-          docker compose pull &&
-          docker compose up -d &&
-          exit"
-
+            echo '${{ secrets.DOCKER_PASSWORD }}' | docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin &&
+            docker compose pull &&
+            docker compose up -d &&
+            exit"
       - name: cleanup server github actions
         if: always()
         run: rm -rf ~/.ssh docker-compose.deploy.yaml .env config.yaml
