@@ -1,6 +1,9 @@
 bot:
   token: your_secret_token
 
+metrics:
+  port: 9000
+
 database:
   host: db
   port: 5432

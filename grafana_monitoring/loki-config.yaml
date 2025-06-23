@@ -1,0 +1,56 @@
+# TODO: Отключает авторизацию, чтобы проще тестировать. На проде включаем
+auth_enabled: false
+
+
+# TODO: Порт, на котором Loki слушает HTTP-запросы (например, от Grafana, curl и т.п.)
+server:
+  http_listen_port: 3100
+
+
+# TODO: Приём логов (описывает как упаковывать логи в чанки перед записью на диск)
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+  chunk_idle_period: 5m
+  chunk_retain_period: 30s
+  max_chunk_age: 1h
+
+
+# TODO: схема хранения для storage_config
+schema_config:
+  configs:
+    - from: 2024-05-23
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# TODO: где и как хранятся данные (сейчас на файловой системе внутри контейнера)
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/tsdb-cache
+  filesystem:
+    directory: /loki/chunks
+
+
+# TODO: Устанавливают время хранения логов — 7 дней. После этого старые чанки удаляются.
+limits_config:
+  retention_period: 168h  # 7 дней
+  allow_structured_metadata: true
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+query_scheduler:
+  max_outstanding_requests_per_tenant: 2048
+
+common:
+  path_prefix: /tmp/loki

@@ -1,5 +1,6 @@
 import typing
 
+from app.bot.metrics import decrement_active_games, increment_active_games
 from app.game.fsm import Fsm, setup_fsm
 
 if typing.TYPE_CHECKING:
@@ -14,11 +15,13 @@ class FsmManager:
     def get_fsm(self, chat_id: int) -> Fsm | None:
         return self.fsm_storage.get(chat_id)
 
+    @increment_active_games
     def set_fsm(self, chat_id: int, game_id: int) -> Fsm:
         fsm = setup_fsm(self.store, chat_id, game_id)
         self.fsm_storage[chat_id] = fsm
         return fsm
 
+    @decrement_active_games
     def remove_fsm(self, chat_id: int) -> None:
         if chat_id in self.fsm_storage:
             del self.fsm_storage[chat_id]
