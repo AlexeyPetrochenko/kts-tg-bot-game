@@ -17,6 +17,7 @@ class Bot:
         self.queue_id = queue_id
 
     async def run_bot(self) -> None:
+        self.store.bot_metrics.start_metrics_server()
         await self.store.broker.connect()
         await self.store.tg_api.connect()
         await self.store.database.connect()
@@ -28,6 +29,7 @@ class Bot:
         await self.store.database.disconnect()
         await self.store.broker.disconnect()
         await self.store.tg_api.disconnect()
+        self.store.bot_metrics.stop_metrics_server()
         logger.info("Bot queue_id=%s stopped successfully", self.queue_id)
 
     async def consume_updates(self) -> None:

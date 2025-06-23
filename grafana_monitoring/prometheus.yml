@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 3s
+
+scrape_configs:
+  - job_name: "bot1"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bot1:9000"]
+
+  - job_name: "bot2"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bot2:9000"]

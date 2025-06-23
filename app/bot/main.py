@@ -19,6 +19,7 @@ async def main() -> None:
         required=True,
         help="ID очереди, которую будет обрабатывать бот",
     )
+
     args = parser.parse_args()
     queue_id = args.queue_id
 

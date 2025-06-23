@@ -1,6 +1,7 @@
 services:
 
   db:
+    container_name: db
     image: postgres:17.0-alpine3.20
     env_file:
       - .env
@@ -31,6 +32,7 @@ services:
     command: alembic upgrade head
 
   broker:
+    container_name: broker
     image: rabbitmq:4.0.5-management-alpine
     ports:
       - "5672:5672"
@@ -48,7 +50,10 @@ services:
 
 
   bot1:
+    container_name: bot1
     build: .
+    ports:
+    - "9001:9000"
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -63,7 +68,10 @@ services:
       sh -c "python3 -m app.bot.main --queue-id=0"
 
   bot2:
+    container_name: bot2
     build: .
+    ports:
+    - "9002:9000"
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -78,6 +86,7 @@ services:
       sh -c "python3 -m app.bot.main --queue-id=1"
 
   poller:
+    container_name: poller
     build: .
     depends_on:
       broker:
@@ -91,6 +100,7 @@ services:
       sh -c "python3 -m app.poller.main"
 
   api:
+    container_name: api
     build: .
     depends_on:
       migrator:
@@ -99,7 +109,7 @@ services:
         condition: service_healthy
     restart: on-failure
     ports:
-    - "8080:8080"
+    - "8081:8080"
     networks:
       - app-network
     volumes:
@@ -107,6 +117,54 @@ services:
     command: >
       sh -c "python3 -m app.web.main"
 
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./grafana_monitoring/config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      run
+      --server.http.listen-addr=0.0.0.0:12345
+      --storage.path=/var/lib/alloy/data
+      /etc/alloy/config.alloy
+    networks:
+      - app-network
+
+  loki:
+    image: grafana/loki:3.4
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./grafana_monitoring/loki-config.yaml:/etc/loki/local-config.yaml
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./grafana_monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana_monitoring/grafana-config.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    networks:
+      - app-network
 
 networks:
   app-network:
