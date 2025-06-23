@@ -1,0 +1,35 @@
+// 1. Обнаружение всех контейнеров Docker
+discovery.docker "docker_containers" {
+    host = "unix:///var/run/docker.sock"
+}
+
+// 2. Извлечение имени контейнера как метки
+discovery.relabel "docker_containers" {
+    targets = discovery.docker.docker_containers.targets
+
+    rule {
+        source_labels = ["__meta_docker_container_name"]
+        regex        = "/(.*)"
+        target_label = "container"
+    }
+}
+
+// 3. Сбор логов из контейнеров
+loki.source.docker "docker_logs" {
+    host        = "unix:///var/run/docker.sock"
+    targets     = discovery.relabel.docker_containers.output
+    forward_to  = [loki.process.process_logs.receiver]
+}
+
+// 4. Обработка логов (парсинг docker-формата)
+loki.process "process_logs" {
+    stage.docker { }
+    forward_to = [loki.write.local_loki.receiver]
+}
+
+// 5. Отправка логов в Loki
+loki.write "local_loki" {
+    endpoint {
+        url = "http://loki:3100/loki/api/v1/push"
+    }
+}

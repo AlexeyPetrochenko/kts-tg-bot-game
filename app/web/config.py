@@ -28,6 +28,11 @@ class SessionConfig:
 
 
 @dataclass
+class MetricsConfig:
+    port: int
+
+
+@dataclass
 class RabbitMQConfig:
     host: str = "localhost"
     port: int = 5672
@@ -69,6 +74,7 @@ class Config:
     aiohttp_session: SessionConfig | None = None
     broker: RabbitMQConfig | None = None
     game: GameConfig | None = None
+    metrics: MetricsConfig | None = None
 
 
 ConfigSchema = class_schema(Config)()

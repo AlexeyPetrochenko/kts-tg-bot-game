@@ -3,6 +3,7 @@ from app.web.config import Config
 
 class Store:
     def __init__(self, config: Config) -> None:
+        from app.bot.metrics import MetricsBot
         from app.store.admin.accessor import AdminAccessor
         from app.store.bot.manager import setup_bot_manager
         from app.store.broker.rabbitmq_broker import RabbitMQClient
@@ -19,3 +20,5 @@ class Store:
         self.game_accessor = GameAccessor(self)
         self.fsm_manager = FsmManager(self)
         self.tg_api = TGApiAccessor(self)
+
+        self.bot_metrics = MetricsBot(self)
